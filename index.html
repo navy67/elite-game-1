@@ -246,14 +246,58 @@ function showJoin() {
   $("joinBox").classList.toggle("hidden");
 }
 
-function joinRoom() {
+
+async function joinRoom() {
   const n = nickname();
   if (!n) return;
-  const c = $("joinCode").value.trim().toUpperCase();
-  if (!/^[A-Z0-9]{6}$/.test(c)) {
-    $("homeMsg").textContent = "Enter a valid 6-character room code.";
+
+  const codeInput = $("joinCode").value.trim().toUpperCase();
+
+  if (!codeInput) {
+    $("homeMsg").textContent = "Enter a room code.";
     return;
   }
+
+  $("homeMsg").textContent = "Joining room...";
+
+  const { data, error } = await supabaseClient.rpc("tod_join_room", {
+    p_code: codeInput,
+    p_nickname: n
+  });
+
+  if (error) {
+    console.error("Join room error:", error);
+    $("homeMsg").textContent = error.message;
+    return;
+  }
+
+  room = data.code;
+  me = n;
+  isHost = false;
+
+  sessionStorage.setItem("tod_room_code", data.code);
+  sessionStorage.setItem("tod_player_id", data.player_id);
+  sessionStorage.setItem("tod_player_token", data.player_token);
+  sessionStorage.removeItem("tod_host_token");
+
+  players = [{
+    id: data.player_id,
+    name: n,
+    host: false,
+    alive: true
+  }];
+
+  round = 0;
+  previousWinner = null;
+  phase = "lobby";
+
+  renderLobby();
+  show("lobby");
+
+  $("lobbyMsg").textContent =
+    "You joined the room! Waiting for the host.";
+}
+
 
   $("homeMsg").textContent =
     "Joining from another device will be available once Supabase multiplayer is connected. This demo cannot join another room yet.";
