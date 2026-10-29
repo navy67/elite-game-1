@@ -291,8 +291,9 @@ async function joinRoom() {
   previousWinner = null;
   phase = "lobby";
 
-  renderLobby();
-  show("lobby");
+ renderLobby();
+ show("lobby");
+ startLobbySync();
 
   $("lobbyMsg").textContent =
     "You joined the room! Waiting for the host.";
@@ -330,7 +331,56 @@ function renderLobby() {
     ? (4-players.length) + " more player(s) needed to start."
     : "The room is ready!";
 }
+async function syncLobby() {
+  const code = sessionStorage.getItem("tod_room_code");
+  const token =
+    sessionStorage.getItem("tod_player_token") ||
+    sessionStorage.getItem("tod_host_token");
 
+  if (!code || !token || phase !== "lobby") return;
+
+  const { data, error } = await supabaseClient.rpc(
+    "tod_get_room_state",
+    {
+      p_code: code,
+      p_player_token: token
+    }
+  );
+
+  if (error) {
+    console.error("Lobby sync error:", error);
+    return;
+  }
+  let lobbySyncInterval = null;
+
+function startLobbySync() {
+  if (lobbySyncInterval) {
+    clearInterval(lobbySyncInterval);
+  }
+
+  syncLobby();
+
+  lobbySyncInterval = setInterval(() => {
+    if (phase === "lobby") {
+      syncLobby();
+    } else {
+      clearInterval(lobbySyncInterval);
+      lobbySyncInterval = null;
+    }
+  }, 2000);
+}
+
+  if (!data || !Array.isArray(data.players)) return;
+
+  players = data.players.map(p => ({
+    id: p.id,
+    name: p.nickname,
+    host: p.is_host,
+    alive: p.is_alive
+  }));
+
+  renderLobby();
+}
 function copyCode() {
   if (!navigator.clipboard) {
     alert("Room code: " + room);
