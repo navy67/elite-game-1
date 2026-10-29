@@ -345,10 +345,7 @@ async function syncLobby() {
     return;
   }
 
-  if (!data || !Array.isArray(data.players)) {
-    console.error("Invalid lobby data:", data);
-    return;
-  }
+  if (!data || !Array.isArray(data.players)) return;
 
   players = data.players.map(p => ({
     id: p.id,
@@ -357,8 +354,33 @@ async function syncLobby() {
     alive: p.is_alive
   }));
 
+  if (data.status === "playing") {
+    round = data.round_number || 1;
+    kind = data.selected_kind || "";
+    selected = data.selected_player_id
+      ? players.find(p => p.id === data.selected_player_id) || null
+      : null;
+
+    proposals = [];
+    chosen = [];
+    attempt = data.attempt_number || 0;
+    votes = {};
+    phase = data.game_phase || "draw";
+
+    show("game");
+    $("roundTag").textContent = "ROUND " + round;
+    $("aliveCount").textContent =
+      players.filter(p => p.alive).length + " active players";
+
+    startGameSync();
+    await syncGameState();
+    return;
+  }
+
   renderLobby();
 }
+
+let lobbySyncInterval = null;
 
 let lobbySyncInterval = null;
 
