@@ -330,9 +330,7 @@ function renderLobby() {
 }
 async function syncLobby() {
   const code = sessionStorage.getItem("tod_room_code");
-  const token =
-    sessionStorage.getItem("tod_player_token") ||
-    sessionStorage.getItem("tod_host_token");
+  const token = sessionStorage.getItem("tod_player_token");
 
   if (!code || !token || phase !== "lobby") return;
 
@@ -346,9 +344,26 @@ async function syncLobby() {
 
   if (error) {
     console.error("Lobby sync error:", error);
+    $("lobbyMsg").textContent = "Sync error: " + error.message;
     return;
   }
-  let lobbySyncInterval = null;
+
+  if (!data || !Array.isArray(data.players)) {
+    console.error("Invalid lobby data:", data);
+    return;
+  }
+
+  players = data.players.map(p => ({
+    id: p.id,
+    name: p.nickname,
+    host: p.is_host,
+    alive: p.is_alive
+  }));
+
+  renderLobby();
+}
+
+let lobbySyncInterval = null;
 
 function startLobbySync() {
   if (lobbySyncInterval) {
