@@ -653,7 +653,7 @@ async function drawPlayer() {
   `;
 
   let ticks = 0;
-  let delay = 65;
+  let delay = 80;
   let timer;
 
   function roll() {
@@ -665,9 +665,9 @@ async function drawPlayer() {
 
     ticks++;
 
-    if (ticks < 22) {
+    if (ticks < 30) {
       timer = setTimeout(roll, delay);
-      delay += 12;
+      delay += ticks < 15 ? 10 : 35;
     }
   }
 
