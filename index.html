@@ -618,6 +618,7 @@ function nextRound() {
   renderGamePlayers();
 }
 
+
 async function drawPlayer() {
   if (phase !== "draw") return;
 
@@ -639,6 +640,7 @@ async function drawPlayer() {
   phase = "spinning";
   $("gameTitle").textContent = "✦ ELITE SPIN ✦";
   $("gameMsg").textContent = "The names are rolling...";
+
   $("turnArea").innerHTML = `
     <div id="slotMachine" style="
       overflow:hidden;
@@ -654,74 +656,59 @@ async function drawPlayer() {
     ">✦ ${esc(pool[0].name)} ✦</div>
   `;
 
-  let ticks = 0;
-  let delay = 80;
-  let timer;
-
-  function roll() {
+  // Start the roulette and progressively slow it down.
+  for (let i = 0; i < 35; i++) {
     const slot = $("slotMachine");
-    if (!slot) return;
-
-    slot.textContent =
-      "✦ " + pool[Math.floor(Math.random() * pool.length)].name + " ✦";
-
-    ticks++;
-
-    if (ticks < 30) {
-      timer = setTimeout(roll, delay);
-      delay += ticks < 15 ? 10 : 35;
+    if (!slot) {
+      phase = "draw";
+      return;
     }
+
+    const randomPlayer =
+      pool[Math.floor(Math.random() * pool.length)];
+
+    slot.textContent = "✦ " + randomPlayer.name + " ✦";
+
+    await new Promise(resolve =>
+      setTimeout(resolve, 60 + i * 10)
+    );
   }
 
-    // Ask Supabase to choose and store the official result.
-  const { data, error } = await supabaseClient.rpc("tod_draw_player", {
-    p_code: code,
-    p_player_token: token
-  });
+  // Ask Supabase for the official selected player.
+  const { data, error } = await supabaseClient.rpc(
+    "tod_draw_player",
+    {
+      p_code: code,
+      p_player_token: token
+    }
+  );
 
-  if (error) {
-    clearTimeout(timer);
+  if (error || !data) {
     console.error("Draw error:", error);
     phase = "draw";
-    $("gameMsg").textContent = "Could not spin: " + error.message;
+    $("gameMsg").textContent =
+      "Could not spin: " + (error?.message || "Unknown error");
+
     $("turnArea").innerHTML = `
-      <button class="primary" onclick="drawPlayer()">✦ SPIN AGAIN ✦</button>
+      <button class="primary" onclick="drawPlayer()">
+        ✦ SPIN AGAIN ✦
+      </button>
     `;
     return;
   }
 
-  // Let the slot animation finish before showing the result.
-  await new Promise(resolve => setTimeout(resolve, 1800));
-  clearTimeout(timer);
-
-
-
-  // Keep the animation running until the names have slowed down.
   const slot = $("slotMachine");
   if (slot) {
     slot.textContent = "✦ " + data.selected_nickname + " ✦";
     slot.style.color = "#d8b4fe";
   }
 
-  selected = players.find(p => p.id === data.selected_player_id) || {
-    id: data.selected_player_id,
-    name: data.selected_nickname,
-    host: false,
-    alive: true
-  };
+  await new Promise(resolve => setTimeout(resolve, 1000));
 
-  $("gameTitle").textContent = "✦ " + selected.name + " ✦";
-  $("gameMsg").textContent = "You're the chosen one. Truth or Dare?";
-
-  $("turnArea").innerHTML = `
-    <div class="actions">
-      <button class="choice" onclick="chooseKind('Truth')"><strong>☾</strong>TRUTH</button>
-      <button class="choice" onclick="chooseKind('Dare')"><strong>⚡</strong>DARE</button>
-    </div>
-  `;
-
-  phase = "choice";
+  // Refresh the shared game state on every device.
+  await syncGameState();
 }
+
 
 async function chooseKind(k) {
   if (phase !== "choice" || !selected) return;
