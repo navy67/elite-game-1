@@ -843,6 +843,87 @@ async function submitProposal() {
   }
 }
 
+async function syncProposalProgress() {
+  const code = sessionStorage.getItem("tod_room_code");
+  const token = sessionStorage.getItem("tod_player_token");
+
+  if (!code || !token || phase !== "submit") return;
+
+  const { data, error } = await supabaseClient.rpc(
+    "tod_get_prompt_progress",
+    {
+      p_code: code,
+      p_player_token: token
+    }
+  );
+
+  if (error) {
+    console.error("Proposal progress error:", error);
+    return;
+  }
+
+  if (!data) return;
+
+  const counter = $("proposalCount");
+  if (counter) {
+    counter.textContent =
+      `${data.submitted} / ${data.total} proposals submitted`;
+  }
+
+  if (data.is_selected) {
+    $("gameMsg").textContent =
+      "Waiting for other players to submit their proposals...";
+
+    $("turnArea").innerHTML = `
+      <p class="notice">
+        The other active players are preparing their proposals.
+        You will see the selected Top 3 when they are ready.
+      </p>
+    `;
+    return;
+  }
+
+  if (data.is_host && Array.isArray(data.prompts)) {
+    const existing = $("hostPromptList");
+
+    if (!existing) {
+      const list = document.createElement("div");
+      list.id = "hostPromptList";
+      list.className = "notice";
+      $("turnArea").appendChild(list);
+    }
+
+    $("hostPromptList").innerHTML = data.prompts
+      .map((p, i) =>
+        `<p>${i + 1}. ${esc(p.prompt_text)}</p>`
+      )
+      .join("");
+  }
+
+  const finish = $("finishProposalsBtn");
+  if (finish) {
+    finish.disabled =
+      data.submitted < data.total || data.total < 3;
+  }
+}
+
+let proposalSyncTimer = null;
+
+function startProposalSync() {
+  if (proposalSyncTimer) clearInterval(proposalSyncTimer);
+
+  syncProposalProgress();
+
+  proposalSyncTimer = setInterval(() => {
+    if (phase === "submit") {
+      syncProposalProgress();
+    } else {
+      clearInterval(proposalSyncTimer);
+      proposalSyncTimer = null;
+    }
+  }, 1500);
+}
+
 function updateProposalProgress() {
   const eligible = players.filter(
     p => p.alive && p.name !== selected.name
