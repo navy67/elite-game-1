@@ -408,12 +408,72 @@ async function syncGameState() {
 
   round = data.round_number;
   kind = data.selected_kind || "";
+  phase = data.game_phase || phase;
 
   selected = data.selected_player_id
     ? players.find(p => p.id === data.selected_player_id) || null
     : null;
 
   renderGamePlayers();
+
+  if (phase === "draw") {
+    $("roundTag").textContent = "ROUND " + round;
+    $("aliveCount").textContent =
+      players.filter(p => p.alive).length + " active players";
+    $("gameTitle").textContent = "✦ The Random Draw";
+    $("gameMsg").textContent =
+      "The lights are on... Who will be chosen?";
+
+    if (isHost) {
+      $("turnArea").innerHTML = `
+        <button class="primary"
+          style="width:100%;padding:20px"
+          onclick="drawPlayer()">
+          ✦ SPIN THE WHEEL ✦
+        </button>
+      `;
+    } else {
+      $("turnArea").innerHTML =
+        '<p class="notice">Waiting for the host to spin the wheel...</p>';
+    }
+  }
+
+  if (phase === "choice" && selected) {
+    $("gameTitle").textContent = "✦ " + selected.name + " ✦";
+    $("gameMsg").textContent =
+      selected.id === sessionStorage.getItem("tod_player_id")
+        ? "You're the chosen one. Truth or Dare?"
+        : selected.name + " is choosing Truth or Dare.";
+
+    if (selected.id === sessionStorage.getItem("tod_player_id")) {
+      $("turnArea").innerHTML = `
+        <div class="actions">
+          <button class="choice" onclick="chooseKind('Truth')">
+            <strong>☾</strong>TRUTH
+          </button>
+          <button class="choice" onclick="chooseKind('Dare')">
+            <strong>⚡</strong>DARE
+          </button>
+        </div>
+      `;
+    } else {
+      $("turnArea").innerHTML =
+        '<p class="notice">Waiting for the selected player...</p>';
+    }
+  }
+}
+let gameSyncTimer = null;
+
+function startGameSync() {
+  if (gameSyncTimer) {
+    clearInterval(gameSyncTimer);
+  }
+
+  gameSyncTimer = setInterval(() => {
+    if (phase !== "lobby") {
+      syncGameState();
+    }
+  }, 1500);
 }
 function copyCode() {
   if (!navigator.clipboard) {
@@ -474,6 +534,7 @@ async function startGame() {
   phase = data.game_phase || "draw";
 
   show("game");
+  startGameSync();
   $("roundTag").textContent = "ROUND " + round;
   $("aliveCount").textContent =
     players.filter(p => p.alive).length + " active players";
