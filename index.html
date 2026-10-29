@@ -673,17 +673,14 @@ async function drawPlayer() {
     }
   }
 
-  roll();
-
-  // Ask Supabase to choose and store the official result.
+    // Ask Supabase to choose and store the official result.
   const { data, error } = await supabaseClient.rpc("tod_draw_player", {
     p_code: code,
     p_player_token: token
   });
 
-  clearTimeout(timer);
-
   if (error) {
+    clearTimeout(timer);
     console.error("Draw error:", error);
     phase = "draw";
     $("gameMsg").textContent = "Could not spin: " + error.message;
@@ -692,6 +689,12 @@ async function drawPlayer() {
     `;
     return;
   }
+
+  // Let the slot animation finish before showing the result.
+  await new Promise(resolve => setTimeout(resolve, 1800));
+  clearTimeout(timer);
+
+
 
   // Keep the animation running until the names have slowed down.
   const slot = $("slotMachine");
