@@ -235,10 +235,13 @@ async function createRoom() {
   previousWinner = null;
   phase = "lobby";
 
-  renderLobby();
-  show("lobby");
-  $("lobbyMsg").textContent =
+    renderLobby();
+    show("lobby");
+    startLobbySync();
+
+    $("lobbyMsg").textContent =
     "Room created! Share this code with your friends.";
+}
 }
 
 
