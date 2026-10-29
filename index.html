@@ -197,21 +197,51 @@ function code6() {
   return result;
 }
 
-function createRoom() {
+
+async function createRoom() {
   const n = nickname();
   if (!n) return;
 
-  room = code6();
+  $("homeMsg").textContent = "Creating your room...";
+
+  const { data, error } = await supabaseClient.rpc("tod_create_room", {
+    p_nickname: n
+  });
+
+  if (error) {
+    console.error("Room creation error:", error);
+    $("homeMsg").textContent =
+      "Could not create the room: " + error.message;
+    return;
+  }
+
+  room = data.code;
   me = n;
   isHost = true;
+
+  // Keep these private tokens only in this browser session.
+  sessionStorage.setItem("tod_room_code", data.code);
+  sessionStorage.setItem("tod_player_id", data.player_id);
+  sessionStorage.setItem("tod_player_token", data.player_token);
+  sessionStorage.setItem("tod_host_token", data.host_token);
+
+  players = [{
+    id: data.player_id,
+    name: n,
+    host: true,
+    alive: true
+  }];
+
   round = 0;
   previousWinner = null;
-  players = [{name:n, host:true, alive:true}];
   phase = "lobby";
 
   renderLobby();
   show("lobby");
+  $("lobbyMsg").textContent =
+    "Room created! Share this code with your friends.";
 }
+
 
 function showJoin() {
   $("joinBox").classList.toggle("hidden");
