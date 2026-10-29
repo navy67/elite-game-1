@@ -580,18 +580,46 @@ async function drawPlayer() {
   phase = "choice";
 }
 
-function chooseKind(k) {
-  kind = k;
+async function chooseKind(k) {
+  if (phase !== "choice" || !selected) return;
+
+  const code = sessionStorage.getItem("tod_room_code");
+  const token = sessionStorage.getItem("tod_player_token");
+
+  if (!code || !token) {
+    $("gameMsg").textContent = "Your room session is missing.";
+    return;
+  }
+
+  $("gameMsg").textContent = "Saving your choice...";
+
+  const { data, error } = await supabaseClient.rpc(
+    "tod_choose_kind",
+    {
+      p_code: code,
+      p_player_token: token,
+      p_kind: k
+    }
+  );
+
+  if (error) {
+    console.error("Truth/Dare choice error:", error);
+    $("gameMsg").textContent = error.message;
+    return;
+  }
+
+  kind = data.selected_kind;
   phase = "submit";
   proposals = [];
   chosen = [];
+
   const eligible = players.filter(
-    p => p.alive && p.name !== selected.name
+    p => p.alive && p.id !== selected.id
   );
 
   $("gameTitle").textContent = selected.name + " chooses: " + kind;
   $("gameMsg").textContent =
-    "Every other active player, including the host, must submit one proposal. The selected player cannot submit a proposal.";
+    "Every other active player, including the host, must submit one proposal.";
 
   $("turnArea").innerHTML = `
     <p class="notice">${eligible.length} players must each submit one proposal.</p>
@@ -606,6 +634,7 @@ function chooseKind(k) {
     <p id="proposalCount" class="notice"></p>
     <button class="primary" id="finishProposalsBtn" style="width:100%;margin-top:10px" onclick="finishProposals()" disabled>Continue to Top 3 Selection</button>
   `;
+
   updateProposalProgress();
 }
 
