@@ -378,7 +378,43 @@ function startLobbySync() {
     }
   }, 2000);
 }
+async function syncGameState() {
+  const code = sessionStorage.getItem("tod_room_code");
+  const token = sessionStorage.getItem("tod_player_token");
 
+  if (!code || !token || phase === "lobby") return;
+
+  const { data, error } = await supabaseClient.rpc(
+    "tod_get_room_state",
+    {
+      p_code: code,
+      p_player_token: token
+    }
+  );
+
+  if (error) {
+    console.error("Game sync error:", error);
+    return;
+  }
+
+  if (!data) return;
+
+  players = (data.players || []).map(p => ({
+    id: p.id,
+    name: p.nickname,
+    host: p.is_host,
+    alive: p.is_alive
+  }));
+
+  round = data.round_number;
+  kind = data.selected_kind || "";
+
+  selected = data.selected_player_id
+    ? players.find(p => p.id === data.selected_player_id) || null
+    : null;
+
+  renderGamePlayers();
+}
 function copyCode() {
   if (!navigator.clipboard) {
     alert("Room code: " + room);
