@@ -389,16 +389,56 @@ function copyCode() {
     .catch(() => alert("Room code: " + room));
 }
 
-function startGame() {
-  if (players.length < 4) {
-    $("lobbyMsg").textContent = "At least 4 players are required to start.";
+async function startGame() {
+  if (!isHost) {
+    $("lobbyMsg").textContent = "Only the host can start the game.";
     return;
   }
-  round = 0;
+
+  if (players.length < 4) {
+    $("lobbyMsg").textContent =
+      "At least 4 players are required to start.";
+    return;
+  }
+
+  const code = sessionStorage.getItem("tod_room_code");
+  const token = sessionStorage.getItem("tod_player_token");
+
+  if (!code || !token) {
+    $("lobbyMsg").textContent =
+      "Room session missing. Please rejoin the room.";
+    return;
+  }
+
+  $("lobbyMsg").textContent = "Starting game...";
+
+  const { data, error } = await supabaseClient.rpc(
+    "tod_start_game",
+    {
+      p_code: code,
+      p_player_token: token
+    }
+  );
+
+  if (error) {
+    console.error("Start game error:", error);
+    $("lobbyMsg").textContent =
+      "Could not start game: " + error.message;
+    return;
+  }
+
+  round = data.round_number;
   previousWinner = null;
+  selected = null;
+  kind = "";
+  proposals = [];
+  chosen = [];
+  attempt = 0;
+  votes = {};
+  phase = "draw";
+
   nextRound();
 }
-
 function nextRound() {
   const alive = players.filter(p => p.alive);
 
