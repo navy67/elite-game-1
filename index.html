@@ -483,6 +483,54 @@ async function syncGameState() {
         '<p class="notice">Waiting for the selected player...</p>';
     }
   }
+  if (phase === "submit" && selected) {
+    const myId = sessionStorage.getItem("tod_player_id");
+
+    $("roundTag").textContent = "ROUND " + round;
+    $("aliveCount").textContent =
+      players.filter(p => p.alive).length + " active players";
+
+    $("gameTitle").textContent =
+      selected.name + " chooses: " + kind;
+
+    if (selected.id === myId) {
+      $("gameMsg").textContent =
+        "Waiting for other players to submit their proposals...";
+
+      $("turnArea").innerHTML = `
+        <p class="notice">
+          The other active players are preparing their proposals.
+          You will see the selected Top 3 when they are ready.
+        </p>
+      `;
+    } else {
+      const inputExists = $("proposal");
+
+      if (!inputExists) {
+        $("gameMsg").textContent =
+          "Submit your own proposal. You can submit only once.";
+
+        $("turnArea").innerHTML = `
+          <p class="notice">
+            Submit one ${kind === "Dare" ? "dare" : "truth question"}.
+          </p>
+          <label for="proposal">Your proposal</label>
+          <input id="proposal" maxlength="180"
+            placeholder="${kind === "Dare" ? "Write your dare..." : "Write your truth question..."}">
+          <button class="secondary"
+            style="width:100%;margin-top:10px"
+            onclick="submitProposal()">
+            Submit Proposal
+          </button>
+          <p id="proposalCount" class="notice">
+            Waiting for proposals...
+          </p>
+        `;
+      }
+    }
+
+    startProposalSync();
+  }
 }
 let gameSyncTimer = null;
 
