@@ -379,17 +379,6 @@ function startLobbySync() {
   }, 2000);
 }
 
-  if (!data || !Array.isArray(data.players)) return;
-
-  players = data.players.map(p => ({
-    id: p.id,
-    name: p.nickname,
-    host: p.is_host,
-    alive: p.is_alive
-  }));
-
-  renderLobby();
-}
 function copyCode() {
   if (!navigator.clipboard) {
     alert("Room code: " + room);
