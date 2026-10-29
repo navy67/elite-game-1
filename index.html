@@ -710,8 +710,16 @@ async function drawPlayer() {
 }
 
 
+
 async function chooseKind(k) {
   if (phase !== "choice" || !selected) return;
+
+  const myId = sessionStorage.getItem("tod_player_id");
+
+  if (selected.id !== myId) {
+    $("gameMsg").textContent = "Only the selected player can choose.";
+    return;
+  }
 
   const code = sessionStorage.getItem("tod_room_code");
   const token = sessionStorage.getItem("tod_player_token");
@@ -738,7 +746,7 @@ async function chooseKind(k) {
     return;
   }
 
-  kind = data.selected_kind;
+  kind = data.selected_kind || k;
   phase = "submit";
   proposals = [];
   chosen = [];
@@ -748,25 +756,41 @@ async function chooseKind(k) {
   );
 
   $("gameTitle").textContent = selected.name + " chooses: " + kind;
+
+  if (selected.id === myId) {
+    $("gameMsg").textContent =
+      "Waiting for other players to submit their proposals...";
+
+    $("turnArea").innerHTML = `
+      <p class="notice">
+        The other active players are preparing their proposals.
+        You will see the selected Top 3 when they are ready.
+      </p>
+    `;
+    return;
+  }
+
   $("gameMsg").textContent =
-    "Every other active player, including the host, must submit one proposal.";
+    "Write your own proposal. You can submit only once.";
 
   $("turnArea").innerHTML = `
-    <p class="notice">${eligible.length} players must each submit one proposal.</p>
-    <label for="proposer">Player submitting a proposal</label>
-    <select id="proposer">
-      ${eligible.map(p => `<option value="${esc(p.name)}">${esc(p.name)}${p.host ? " (Host)" : ""}</option>`).join("")}
-    </select>
+    <p class="notice">
+      ${eligible.length} other active players must each submit one proposal.
+    </p>
     <label for="proposal">Your proposal</label>
     <input id="proposal" maxlength="180"
       placeholder="${kind === "Dare" ? "Write your dare..." : "Write your truth question..."}">
-    <button class="secondary" style="width:100%;margin-top:10px" onclick="submitProposal()">Submit Proposal</button>
-    <p id="proposalCount" class="notice"></p>
-    <button class="primary" id="finishProposalsBtn" style="width:100%;margin-top:10px" onclick="finishProposals()" disabled>Continue to Top 3 Selection</button>
+    <button class="secondary"
+      style="width:100%;margin-top:10px"
+      onclick="submitProposal()">
+      Submit Proposal
+    </button>
+    <p id="proposalCount" class="notice">
+      Waiting for proposals...
+    </p>
   `;
-
-  updateProposalProgress();
 }
+
 
 function submitProposal() {
   const by = $("proposer").value;
