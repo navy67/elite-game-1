@@ -431,7 +431,7 @@ async function startGame() {
     return;
   }
 
-  if (players.length < 4) {
+  if (players.filter(p => p.alive).length < 4) {
     $("lobbyMsg").textContent =
       "At least 4 players are required to start.";
     return;
@@ -471,9 +471,30 @@ async function startGame() {
   chosen = [];
   attempt = 0;
   votes = {};
-  phase = "draw";
+  phase = data.game_phase || "draw";
 
-  nextRound();
+  show("game");
+  $("roundTag").textContent = "ROUND " + round;
+  $("aliveCount").textContent =
+    players.filter(p => p.alive).length + " active players";
+  $("gameTitle").textContent = "✦ The Random Draw";
+  $("gameMsg").textContent =
+    "The lights are on... Who will be chosen?";
+
+  if (isHost) {
+    $("turnArea").innerHTML = `
+      <button class="primary"
+        style="width:100%;padding:20px"
+        onclick="drawPlayer()">
+        ✦ SPIN THE WHEEL ✦
+      </button>
+    `;
+  } else {
+    $("turnArea").innerHTML =
+      '<p class="notice">Waiting for the host to spin the wheel...</p>';
+  }
+
+  renderGamePlayers();
 }
 function nextRound() {
   const alive = players.filter(p => p.alive);
