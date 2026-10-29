@@ -7,55 +7,102 @@
 <meta name="theme-color" content="#10091d">
 <title>Action ou Vérité — Elite Edition</title>
 <style>
-:root{--bg:#0c0715;--panel:#171025;--purple:#9c55ff;--pink:#f09bff;--muted:#b7a9ca;--border:#49305f}
-*{box-sizing:border-box}
-body{margin:0;background:radial-gradient(ellipse at top,#291343 0,#10091d 48%,#09060f 100%);color:#fff;font-family:Inter,Segoe UI,Arial,sans-serif;min-height:100vh}
-button,input{font:inherit}
-button{cursor:pointer;border:0;border-radius:12px;padding:13px 18px;font-weight:750;transition:.2s}
-button:hover{transform:translateY(-2px);filter:brightness(1.12)}
-button:disabled{opacity:.45;cursor:not-allowed;transform:none}
-.primary{background:linear-gradient(120deg,#8b42f5,#d16dff);color:white;box-shadow:0 5px 25px #a34aff30}
-.secondary{background:#251833;border:1px solid var(--border);color:white}
-.danger{background:#512039;color:#ffd7e5}
-a{color:#d7a0ff}
-header{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:18px 5%;border-bottom:1px solid #ffffff12}
-.brand{font-weight:900;letter-spacing:2px;color:#d8b3ff}
-.discord{font-size:13px;text-decoration:none;border:1px solid var(--border);padding:10px 13px;border-radius:10px}
-main{max-width:900px;margin:auto;padding:38px 18px 70px}
-.hero{text-align:center;padding:28px 0 30px}
-.logo{width:100px;height:100px;object-fit:contain;border-radius:20px;filter:drop-shadow(0 0 22px #ae5cff55)}
-.eyebrow{color:#d4a0ff;letter-spacing:4px;font-size:11px;font-weight:800;margin:20px 0}
-h1{font-size:clamp(32px,7vw,62px);line-height:1.05;margin:10px 0;font-weight:950}
-h1 span{display:block;color:#bf83ff}
-.subtitle{color:var(--muted);line-height:1.7}
-.panel{background:linear-gradient(145deg,#1c1229ee,#120c1cee);border:1px solid var(--border);border-radius:20px;padding:22px;margin:16px 0;box-shadow:0 15px 45px #0002}
-h2{margin:0 0 14px;font-size:21px}
-h3{font-size:15px}
-label{display:block;color:var(--muted);font-size:13px;margin:13px 0 7px}
-input{width:100%;padding:13px;border:1px solid var(--border);border-radius:11px;background:#0e0917;color:white;outline:none}
-input:focus{border-color:var(--purple)}
-.actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:18px}
-.notice{font-size:12px;color:var(--muted);line-height:1.7}
-.hidden{display:none!important}
-.row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.code{font-size:27px;letter-spacing:6px;color:#d5a6ff;font-weight:900}
-.players{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:9px;margin:15px 0}
-.player{padding:12px;background:#22152f;border:1px solid #48305b;border-radius:11px;overflow-wrap:anywhere}
-.player small{display:block;color:var(--muted);margin-top:5px}
-.tag{font-size:11px;color:#dfb9ff;border:1px solid #70439a;border-radius:20px;padding:4px 8px}
-.status{color:#d7b8ff;font-size:13px}
-.choice{width:100%;padding:22px 10px;font-size:20px;border:1px solid #7642a4;background:#241535;color:white}
-.choice strong{display:block;font-size:30px;margin-bottom:8px}
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
-.prompt{border:1px solid #583875;background:#211430;padding:17px;border-radius:14px}
-.prompt p{line-height:1.5}
-.prompt button{width:100%;margin-top:7px}
-footer{text-align:center;padding:20px;color:#887a9a;font-size:12px}
-hr{border:0;border-top:1px solid #ffffff14;margin:18px 0}
-@media(max-width:500px){header{padding:14px}.discord{font-size:11px}main{padding:20px 13px}.panel{padding:17px}.actions{grid-template-columns:1fr}}
+:root {
+  --bg:#0c0715;
+  --panel:#171025;
+  --purple:#9c55ff;
+  --pink:#f09bff;
+  --muted:#b7a9ca;
+  --border:#49305f;
+}
+* { box-sizing:border-box; }
+body {
+  margin:0;
+  background:radial-gradient(ellipse at top,#291343 0,#10091d 48%,#09060f 100%);
+  color:#fff;
+  font-family:Inter,"Segoe UI",Arial,sans-serif;
+  min-height:100vh;
+}
+button,input,select { font:inherit; }
+button {
+  cursor:pointer;
+  border:0;
+  border-radius:12px;
+  padding:13px 18px;
+  font-weight:750;
+  transition:.2s;
+}
+button:hover { transform:translateY(-2px); filter:brightness(1.12); }
+button:disabled { opacity:.45; cursor:not-allowed; transform:none; }
+.primary {
+  background:linear-gradient(120deg,#8b42f5,#d16dff);
+  color:white;
+  box-shadow:0 5px 25px #a34aff30;
+}
+.secondary { background:#251833; border:1px solid var(--border); color:white; }
+.danger { background:#512039; color:#ffd7e5; }
+a { color:#d7a0ff; }
+header {
+  display:flex; justify-content:space-between; align-items:center;
+  gap:12px; padding:18px 5%; border-bottom:1px solid #ffffff12;
+}
+.brand { font-weight:900; letter-spacing:2px; color:#d8b3ff; }
+.discord {
+  font-size:13px; text-decoration:none; border:1px solid var(--border);
+  padding:10px 13px; border-radius:10px;
+}
+main { max-width:900px; margin:auto; padding:38px 18px 70px; }
+.hero { text-align:center; padding:28px 0 30px; }
+.logo {
+  width:100px; height:100px; object-fit:contain; border-radius:20px;
+  filter:drop-shadow(0 0 22px #ae5cff55);
+}
+.eyebrow { color:#d4a0ff; letter-spacing:4px; font-size:11px; font-weight:800; margin:20px 0; }
+h1 { font-size:clamp(32px,7vw,62px); line-height:1.05; margin:10px 0; font-weight:950; }
+h1 span { display:block; color:#bf83ff; }
+.subtitle { color:var(--muted); line-height:1.7; }
+.panel {
+  background:linear-gradient(145deg,#1c1229ee,#120c1cee);
+  border:1px solid var(--border); border-radius:20px; padding:22px;
+  margin:16px 0; box-shadow:0 15px 45px #0002;
+}
+h2 { margin:0 0 14px; font-size:21px; }
+h3 { font-size:15px; }
+label { display:block; color:var(--muted); font-size:13px; margin:13px 0 7px; }
+input,select {
+  width:100%; padding:13px; border:1px solid var(--border);
+  border-radius:11px; background:#0e0917; color:white; outline:none;
+}
+input:focus,select:focus { border-color:var(--purple); }
+.actions { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:18px; }
+.notice { font-size:12px; color:var(--muted); line-height:1.7; }
+.hidden { display:none!important; }
+.row { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.code { font-size:27px; letter-spacing:6px; color:#d5a6ff; font-weight:900; }
+.players { display:grid; grid-template-columns:repeat(auto-fit,minmax(135px,1fr)); gap:9px; margin:15px 0; }
+.player { padding:12px; background:#22152f; border:1px solid #48305b; border-radius:11px; overflow-wrap:anywhere; }
+.player small { display:block; color:var(--muted); margin-top:5px; }
+.tag { font-size:11px; color:#dfb9ff; border:1px solid #70439a; border-radius:20px; padding:4px 8px; }
+.status { color:#d7b8ff; font-size:13px; }
+.choice { width:100%; padding:22px 10px; font-size:20px; border:1px solid #7642a4; background:#241535; color:white; }
+.choice strong { display:block; font-size:30px; margin-bottom:8px; }
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; }
+.prompt { border:1px solid #583875; background:#211430; padding:17px; border-radius:14px; }
+.prompt p { line-height:1.5; overflow-wrap:anywhere; }
+.prompt button { width:100%; margin-top:7px; }
+footer { text-align:center; padding:20px; color:#887a9a; font-size:12px; }
+hr { border:0; border-top:1px solid #ffffff14; margin:18px 0; }
+@media(max-width:500px) {
+  header { padding:14px; }
+  .discord { font-size:11px; }
+  main { padding:20px 13px; }
+  .panel { padding:17px; }
+  .actions { grid-template-columns:1fr; }
+}
 </style>
 </head>
 <body>
+
 <header>
   <div class="brand">✦ ELITE LEADERS</div>
   <a class="discord" href="https://discord.gg/elt-elite" target="_blank" rel="noopener">Rejoindre le Discord ↗</a>
@@ -64,27 +111,27 @@ hr{border:0;border-top:1px solid #ffffff14;margin:18px 0}
 <main>
 <section id="home">
   <div class="hero">
-    <!-- Ajoute ton logo dans le dépôt sous le nom elt-logo.gif -->
-    <img class="logo" src="elt-logo.gif" alt="Logo ELT"
-      onerror="this.style.display='none'">
+    <!-- Pour afficher ton logo, ajoute elt-logo.gif à la racine du dépôt GitHub. -->
+    <img class="logo" src="elt-logo.gif" alt="Logo ELT" onerror="this.style.display='none'">
     <div class="eyebrow">ELITE LEADERS COMMUNITY PRESENTS</div>
     <h1>ACTION OU VÉRITÉ <span>ELITE EDITION</span></h1>
     <p class="subtitle">Your staff. Your rules. Your game.</p>
-    <p class="notice">Une expérience réservée à votre communauté. Utilise ton pseudo Discord, sans mot de passe ni token Discord.</p>
+    <p class="notice">Une expérience pour les staffs de ta communauté.</p>
   </div>
+
   <div class="panel">
     <h2>✦ Entre dans l'arène</h2>
     <label for="nickname">Ton pseudo Discord</label>
     <input id="nickname" maxlength="24" placeholder="Ex. Navy" autocomplete="nickname">
     <div class="actions">
       <button class="primary" onclick="createRoom()">＋ Créer une partie</button>
-      <button class="secondary" onclick="showJoin()">↗ Rejoindre</button>
+      <button class="secondary" onclick="showJoin()">↗ Rejoindre une partie</button>
     </div>
     <div id="joinBox" class="hidden">
       <hr>
       <label for="joinCode">Code de la partie</label>
       <input id="joinCode" maxlength="6" placeholder="ABC123" style="text-transform:uppercase">
-      <button class="primary" style="width:100%;margin-top:12px" onclick="joinRoom()">Rejoindre la salle</button>
+      <button class="primary" style="width:100%;margin-top:12px" onclick="joinRoom()">Rejoindre</button>
     </div>
     <p id="homeMsg" class="notice" aria-live="polite"></p>
   </div>
@@ -92,16 +139,22 @@ hr{border:0;border-top:1px solid #ffffff14;margin:18px 0}
 
 <section id="lobby" class="hidden">
   <div class="panel">
-    <div class="row"><h2>✦ Waiting Room</h2><span class="tag">EN ATTENTE</span></div>
-    <p class="notice">Partage ce code avec les autres joueurs.</p>
+    <div class="row">
+      <h2>✦ Waiting Room</h2>
+      <span class="tag">EN ATTENTE</span>
+    </div>
+    <p class="notice">Partage le code avec les autres joueurs.</p>
     <div class="row">
       <div id="roomCode" class="code">------</div>
       <button class="secondary" onclick="copyCode()">Copier le code</button>
     </div>
     <hr>
-    <div class="row"><h3>Participants</h3><span id="playerCount" class="status"></span></div>
+    <div class="row">
+      <h3>Participants</h3>
+      <span id="playerCount" class="status"></span>
+    </div>
     <div id="lobbyPlayers" class="players"></div>
-    <p class="notice">Minimum 4 joueurs. Dans cette première démo, les participants sont ajoutés manuellement sur cet appareil.</p>
+    <p class="notice">Minimum 4 joueurs. Cette version est une démo locale : ajoute les joueurs de test sur cet appareil.</p>
     <button id="addDemo" class="secondary" onclick="addDemoPlayer()">＋ Ajouter un joueur de test</button>
     <button id="startBtn" class="primary" style="width:100%;margin-top:12px" onclick="startGame()">Lancer la partie</button>
     <button class="secondary" style="width:100%;margin-top:10px" onclick="goHome()">Quitter la salle</button>
@@ -111,7 +164,10 @@ hr{border:0;border-top:1px solid #ffffff14;margin:18px 0}
 
 <section id="game" class="hidden">
   <div class="panel">
-    <div class="row"><span class="tag" id="roundTag">TOUR 1</span><span id="aliveCount" class="status"></span></div>
+    <div class="row">
+      <span class="tag" id="roundTag">TOUR 1</span>
+      <span id="aliveCount" class="status"></span>
+    </div>
     <h2 id="gameTitle" style="margin-top:18px">Le tirage commence...</h2>
     <p id="gameMsg" class="subtitle"></p>
     <div id="turnArea"></div>
@@ -131,13 +187,16 @@ hr{border:0;border-top:1px solid #ffffff14;margin:18px 0}
   </div>
 </section>
 </main>
+
 <footer>ELITE LEADERS COMMUNITY · ACTION OU VÉRITÉ ELITE EDITION</footer>
 
 <script>
 const $ = id => document.getElementById(id);
+
 let room = null;
 let me = null;
 let isHost = false;
+let players = [];
 let round = 0;
 let selected = null;
 let kind = "";
@@ -147,183 +206,462 @@ let attempt = 0;
 let previousWinner = null;
 let phase = "lobby";
 let votes = {};
-let proposalIndex = 0;
 
-function show(id){
-  ["home","lobby","game","end"].forEach(x => $(x).classList.toggle("hidden",x!==id));
+function show(id) {
+  ["home","lobby","game","end"].forEach(
+    x => $(x).classList.toggle("hidden", x !== id)
+  );
 }
-function nickname(){
+
+function esc(value) {
+  return String(value).replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[c]));
+}
+
+function nickname() {
   const n = $("nickname").value.trim();
-  if(!n){$("homeMsg").textContent="Entre ton pseudo Discord pour continuer.";return null}
-  if(n.length>24){$("homeMsg").textContent="Ton pseudo doit faire 24 caractères maximum.";return null}
+  if (!n) {
+    $("homeMsg").textContent = "Entre ton pseudo Discord pour continuer.";
+    return null;
+  }
+  if (n.length > 24) {
+    $("homeMsg").textContent = "Ton pseudo doit faire 24 caractères maximum.";
+    return null;
+  }
   return n;
 }
-function code6(){return Math.random().toString(36).slice(2,8).toUpperCase().padEnd(6,"X")}
-function createRoom(){
-  const n=nickname();if(!n)return;
-  room=code6();me=n;isHost=true;round=0;previousWinner=null;
-  players=[{name:n,host:true,alive:true}];
-  phase="lobby";renderLobby();show("lobby");
+
+function code6() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let result = "";
+  for (let i=0; i<6; i++) {
+    result += chars[Math.floor(Math.random()*chars.length)];
+  }
+  return result;
 }
-let players=[];
-function showJoin(){$("joinBox").classList.toggle("hidden")}
-function joinRoom(){
-  const n=nickname();if(!n)return;
-  const c=$("joinCode").value.trim().toUpperCase();
-  if(!/^[A-Z0-9]{6}$/.test(c)){$("homeMsg").textContent="Entre un code valide de 6 caractères.";return}
-  $("homeMsg").textContent="Cette démo ne peut rejoindre que la salle créée sur cet appareil. La connexion multijoueur sera ajoutée avec Supabase.";
+
+function createRoom() {
+  const n = nickname();
+  if (!n) return;
+
+  room = code6();
+  me = n;
+  isHost = true;
+  round = 0;
+  previousWinner = null;
+  players = [{name:n, host:true, alive:true}];
+  phase = "lobby";
+
+  renderLobby();
+  show("lobby");
 }
-function addDemoPlayer(){
-  if(phase!=="lobby")return;
-  const n=prompt("Pseudo du joueur de test ?");
-  if(!n||!n.trim())return;
-  if(players.some(p=>p.name.toLowerCase()===n.trim().toLowerCase())){alert("Ce pseudo est déjà utilisé.");return}
-  players.push({name:n.trim().slice(0,24),host:false,alive:true});
+
+function showJoin() {
+  $("joinBox").classList.toggle("hidden");
+}
+
+function joinRoom() {
+  const n = nickname();
+  if (!n) return;
+
+  const c = $("joinCode").value.trim().toUpperCase();
+  if (!/^[A-Z0-9]{6}$/.test(c)) {
+    $("homeMsg").textContent = "Entre un code valide de 6 caractères.";
+    return;
+  }
+
+  $("homeMsg").textContent =
+    "La connexion entre appareils sera activée dans la version Supabase. Cette démo ne permet pas encore de rejoindre une autre salle.";
+}
+
+function addDemoPlayer() {
+  if (phase !== "lobby") return;
+
+  const n = prompt("Pseudo du joueur de test ?");
+  if (!n || !n.trim()) return;
+
+  const name = n.trim().slice(0,24);
+  if (players.some(p => p.name.toLowerCase() === name.toLowerCase())) {
+    alert("Ce pseudo est déjà utilisé.");
+    return;
+  }
+
+  players.push({name, host:false, alive:true});
   renderLobby();
 }
-function renderLobby(){
-  $("roomCode").textContent=room;
-  $("playerCount").textContent=players.length+" participant(s)";
-  $("lobbyPlayers").innerHTML=players.map(p=>`<div class="player">✦ ${esc(p.name)}${p.host?'<small>HOST</small>':'<small>Joueur</small>'}</div>`).join("");
-  $("startBtn").disabled=players.length<4;
-  $("lobbyMsg").textContent=players.length<4?"Il faut au moins "+(4-players.length)+" joueur(s) supplémentaire(s) pour commencer.":"La salle est prête !";
+
+function renderLobby() {
+  $("roomCode").textContent = room;
+  $("playerCount").textContent = players.length + " participant(s)";
+  $("lobbyPlayers").innerHTML = players.map(p =>
+    `<div class="player">✦ ${esc(p.name)}${p.host ? "<small>HOST</small>" : "<small>Joueur</small>"}</div>`
+  ).join("");
+
+  $("startBtn").disabled = players.length < 4;
+  $("lobbyMsg").textContent = players.length < 4
+    ? "Il faut encore " + (4-players.length) + " joueur(s) pour commencer."
+    : "La salle est prête !";
 }
-function copyCode(){navigator.clipboard?.writeText(room).then(()=>alert("Code copié : "+room)).catch(()=>alert("Code de la partie : "+room))}
-function startGame(){
-  if(players.length<4){$("lobbyMsg").textContent="Minimum 4 joueurs pour démarrer.";return}
-  round=0;previousWinner=null;nextRound();
+
+function copyCode() {
+  if (!navigator.clipboard) {
+    alert("Code de la partie : " + room);
+    return;
+  }
+  navigator.clipboard.writeText(room)
+    .then(() => alert("Code copié : " + room))
+    .catch(() => alert("Code de la partie : " + room));
 }
-function nextRound(){
-  const alive=players.filter(p=>p.alive);
-  if(alive.length<=2){$("winners").textContent="Gagnants : "+alive.map(p=>p.name).join(" et ");show("end");return}
-  round++;selected=null;kind="";proposals=[];chosen=[];attempt=0;votes={};phase="draw";show("game");
-  $("roundTag").textContent="TOUR "+round;
-  $("aliveCount").textContent=alive.length+" joueurs actifs";
-  $("gameTitle").textContent="Le tirage au sort";
-  $("gameMsg").textContent="Les lumières s'allument... Qui sera choisi ?";
-  // Le host est toujours exclu du premier tirage.
-  let pool=alive;
-  if(round===1)pool=alive.filter(p=>!p.host);
-  if(!pool.length){$("gameMsg").textContent="Aucun joueur disponible pour le tirage.";return}
-  $("turnArea").innerHTML='<button class="primary" style="width:100%;padding:20px" onclick="drawPlayer()">✦ LANCER LE TIRAGE ✦</button>';
+
+function startGame() {
+  if (players.length < 4) {
+    $("lobbyMsg").textContent = "Minimum 4 joueurs pour démarrer.";
+    return;
+  }
+  round = 0;
+  previousWinner = null;
+  nextRound();
+}
+
+function nextRound() {
+  const alive = players.filter(p => p.alive);
+
+  // La partie se termine à 3 joueurs actifs.
+  if (alive.length <= 3) {
+    $("winners").textContent = alive.length
+      ? "Gagnants : " + alive.map(p => p.name).join(", ")
+      : "Aucun gagnant.";
+    show("end");
+    return;
+  }
+
+  round++;
+  selected = null;
+  kind = "";
+  proposals = [];
+  chosen = [];
+  attempt = 0;
+  votes = {};
+  phase = "draw";
+  show("game");
+
+  $("roundTag").textContent = "TOUR " + round;
+  $("aliveCount").textContent = alive.length + " joueurs actifs";
+  $("gameTitle").textContent = "Le tirage au sort";
+  $("gameMsg").textContent = "Les lumières s'allument... Qui sera choisi ?";
+
+  // Le host est exclu du premier tour uniquement.
+  const pool = round === 1 ? alive.filter(p => !p.host) : alive;
+
+  if (!pool.length) {
+    $("gameMsg").textContent = "Aucun joueur disponible pour le tirage.";
+    return;
+  }
+
+  $("turnArea").innerHTML =
+    '<button class="primary" style="width:100%;padding:20px" onclick="drawPlayer()">✦ LANCER LE TIRAGE ✦</button>';
+
   renderGamePlayers();
 }
-function drawPlayer(){
-  const alive=players.filter(p=>p.alive);
-  const pool=round===1?alive.filter(p=>!p.host):alive;
-  selected=pool[Math.floor(Math.random()*pool.length)];
-  $("gameTitle").textContent="✦ "+selected.name+" ✦";
-  $("gameMsg").textContent="Le sort t'a choisi. Action ou vérité ?";
-  $("turnArea").innerHTML=`<div class="actions">
-    <button class="choice" onclick="chooseKind('Vérité')"><strong>☾</strong>VÉRITÉ</button>
-    <button class="choice" onclick="chooseKind('Action')"><strong>⚡</strong>ACTION</button>
-  </div>`;
-  phase="choice";
+
+function drawPlayer() {
+  const alive = players.filter(p => p.alive);
+  const pool = round === 1 ? alive.filter(p => !p.host) : alive;
+
+  if (!pool.length) return;
+
+  selected = pool[Math.floor(Math.random()*pool.length)];
+
+  $("gameTitle").textContent = "✦ " + selected.name + " ✦";
+  $("gameMsg").textContent = "Le sort t'a choisi. Action ou vérité ?";
+
+  $("turnArea").innerHTML = `
+    <div class="actions">
+      <button class="choice" onclick="chooseKind('Vérité')"><strong>☾</strong>VÉRITÉ</button>
+      <button class="choice" onclick="chooseKind('Action')"><strong>⚡</strong>ACTION</button>
+    </div>`;
+
+  phase = "choice";
 }
-function chooseKind(k){
-  kind=k;phase="submit";
-  $("gameTitle").textContent=selected.name+" choisit : "+kind;
-  $("gameMsg").textContent="Chaque participant actif peut proposer une seule "+(kind==="Action"?"action":"vérité")+". Le host sélectionnera les 3 meilleures.";
-  proposals=[];
-  $("turnArea").innerHTML=`
-    <label for="proposer">Pseudo du participant qui propose</label>
-    <select id="proposer" style="width:100%;padding:12px;background:#10091d;color:white;border:1px solid #49305f;border-radius:10px">
-      ${players.filter(p=>p.alive).map(p=>`<option>${esc(p.name)}</option>`).join("")}
+
+function chooseKind(k) {
+  kind = k;
+  phase = "submit";
+  proposals = [];
+  chosen = [];
+
+  const eligible = players.filter(
+    p => p.alive && p.name !== selected.name
+  );
+
+  $("gameTitle").textContent = selected.name + " choisit : " + kind;
+  $("gameMsg").textContent =
+    "Chaque autre joueur actif, y compris le host, doit envoyer sa propre proposition. Le joueur sélectionné ne peut pas proposer.";
+
+  $("turnArea").innerHTML = `
+    <p class="notice">
+      ${eligible.length} participants doivent envoyer chacun une seule proposition.
+    </p>
+    <label for="proposer">Participant qui écrit</label>
+    <select id="proposer">
+      ${eligible.map(p => `<option value="${esc(p.name)}">${esc(p.name)}${p.host ? " (Host)" : ""}</option>`).join("")}
     </select>
-    <label for="proposal">Ta proposition (respectueuse et sans danger)</label>
-    <input id="proposal" maxlength="180" placeholder="${kind==="Action"?"Ex. Fais une imitation amusante":"Ex. Quel est ton jeu préféré ?"}">
-    <button class="secondary" style="width:100%;margin-top:10px" onclick="submitProposal()">Ajouter la proposition</button>
-    <p id="proposalCount" class="notice">0 proposition(s) ajoutée(s)</p>
-    <button class="primary" style="width:100%;margin-top:10px" onclick="finishProposals()">Passer à la sélection du top 3</button>`;
+    <label for="proposal">Ta proposition</label>
+    <input id="proposal" maxlength="180"
+      placeholder="${kind === "Action" ? "Écris ton gage..." : "Écris ta question..."}">
+    <button class="secondary" style="width:100%;margin-top:10px" onclick="submitProposal()">Envoyer ma proposition</button>
+    <p id="proposalCount" class="notice"></p>
+    <button class="primary" id="finishProposalsBtn" style="width:100%;margin-top:10px" onclick="finishProposals()" disabled>Passer à la sélection du Top 3</button>
+  `;
+
+  updateProposalProgress();
 }
-function submitProposal(){
-  const by=$("proposer").value;
-  const value=$("proposal").value.trim();
-  if(!value){alert("Écris une proposition.");return}
-  if(proposals.some(p=>p.by===by)){alert("Ce participant a déjà proposé une question ou un gage.");return}
-  if(value.length>180){alert("Proposition trop longue.");return}
-  proposals.push({by,text:value});
-  $("proposal").value="";
-  $("proposalCount").textContent=proposals.length+" proposition(s) ajoutée(s)";
+
+function submitProposal() {
+  const by = $("proposer").value;
+  const value = $("proposal").value.trim();
+
+  if (!by || by === selected.name) {
+    alert("Le joueur sélectionné ne peut pas proposer.");
+    return;
+  }
+
+  if (!players.some(p => p.alive && p.name === by)) {
+    alert("Ce joueur n'est pas actif.");
+    return;
+  }
+
+  if (proposals.some(p => p.by === by)) {
+    alert("Ce participant a déjà envoyé sa proposition.");
+    return;
+  }
+
+  if (!value) {
+    alert("Écris ta proposition avant de l'envoyer.");
+    return;
+  }
+
+  proposals.push({by, text:value});
+  $("proposal").value = "";
+
+  const option = [...$("proposer").options].find(o => o.value === by);
+  if (option) option.remove();
+
+  updateProposalProgress();
 }
-function finishProposals(){
-  if(proposals.length<3){alert("Il faut au moins 3 propositions pour former le top 3.");return}
-  phase="top3";proposalIndex=0;chosen=[];
-  $("gameTitle").textContent="Sélection du Top 3";
-  $("gameMsg").textContent=(selected.host?"Le joueur précédent gère cette sélection.":"Le host sélectionne trois propositions.")+" Choisis trois propositions.";
-  let chooser=selected.host?previousWinner:players.find(p=>p.host)?.name;
-  if(selected.host&&!chooser){alert("Aucun joueur précédent qualifié pour assurer la sélection.");return}
-  const available=[...proposals];
-  $("turnArea").innerHTML=`<p class="notice">Responsable de la sélection : ${esc(chooser||"Host")}</p><div id="proposalCards" class="cards"></div><p id="topCount" class="notice">0 / 3 sélectionnées</p><button class="primary" style="width:100%" onclick="confirmTop3()">Confirmer le Top 3</button>`;
-  $("proposalCards").innerHTML=available.map((p,i)=>`<div class="prompt"><p>${esc(p.text)}</p><small class="notice">Par ${esc(p.by)}</small><button class="secondary" onclick="toggleTop(${i},this)">＋ Ajouter au Top 3</button></div>`).join("");
+
+function updateProposalProgress() {
+  const eligible = players.filter(
+    p => p.alive && p.name !== selected.name
+  );
+
+  const count = proposals.length;
+  const complete = count === eligible.length;
+
+  const counter = $("proposalCount");
+  if (counter) {
+    counter.textContent = `${count} / ${eligible.length} propositions envoyées`;
+  }
+
+  const btn = $("finishProposalsBtn");
+  if (btn) btn.disabled = !complete || count < 3;
 }
-function toggleTop(i,btn){
-  const p=proposals[i];
-  if(chosen.includes(i)){chosen=chosen.filter(x=>x!==i);btn.textContent="＋ Ajouter au Top 3"}
-  else if(chosen.length<3){chosen.push(i);btn.textContent="✓ Sélectionnée"}
-  else{alert("Le Top 3 est complet.");return}
-  $("topCount").textContent=chosen.length+" / 3 sélectionnées";
+
+function finishProposals() {
+  const eligible = players.filter(
+    p => p.alive && p.name !== selected.name
+  );
+
+  if (proposals.length !== eligible.length) {
+    alert("Chaque participant autorisé doit envoyer exactement une proposition.");
+    return;
+  }
+
+  if (proposals.length < 3) {
+    alert("Il faut au moins 3 propositions pour le Top 3.");
+    return;
+  }
+
+  phase = "top3";
+  chosen = [];
+
+  $("gameTitle").textContent = "Sélection du Top 3";
+
+  const chooser = selected.host
+    ? previousWinner
+    : players.find(p => p.host)?.name;
+
+  if (selected.host && !chooser) {
+    alert("Aucun joueur précédent qualifié pour assurer la sélection.");
+    return;
+  }
+
+  $("gameMsg").textContent = selected.host
+    ? "Le joueur précédent gère uniquement la sélection du Top 3."
+    : "Le host sélectionne les trois meilleures propositions.";
+
+  $("turnArea").innerHTML = `
+    <p class="notice">Responsable de la sélection : ${esc(chooser || "Host")}</p>
+    <div id="proposalCards" class="cards"></div>
+    <p id="topCount" class="notice">0 / 3 sélectionnées</p>
+    <button class="primary" style="width:100%" onclick="confirmTop3()">Confirmer le Top 3</button>
+  `;
+
+  $("proposalCards").innerHTML = proposals.map((p,i) => `
+    <div class="prompt">
+      <p>${esc(p.text)}</p>
+      <small class="notice">Proposée par ${esc(p.by)}</small>
+      <button class="secondary" onclick="toggleTop(${i},this)">＋ Ajouter au Top 3</button>
+    </div>
+  `).join("");
 }
-function confirmTop3(){
-  if(chosen.length!==3){alert("Sélectionne exactement 3 propositions.");return}
-  chosen=chosen.map(i=>proposals[i]);attempt=0;showChallenge();
+
+function toggleTop(i, btn) {
+  if (chosen.includes(i)) {
+    chosen = chosen.filter(x => x !== i);
+    btn.textContent = "＋ Ajouter au Top 3";
+  } else if (chosen.length < 3) {
+    chosen.push(i);
+    btn.textContent = "✓ Sélectionnée";
+  } else {
+    alert("Le Top 3 est complet.");
+    return;
+  }
+
+  $("topCount").textContent = chosen.length + " / 3 sélectionnées";
 }
-function showChallenge(){
-  phase="challenge";
-  const p=chosen[attempt];
-  $("gameTitle").textContent=selected.name+" : "+kind;
-  $("gameMsg").textContent="Proposition "+(attempt+1)+" sur 3";
-  $("turnArea").innerHTML=`<div class="prompt"><span class="tag">${kind.toUpperCase()}</span><p style="font-size:19px">${esc(p.text)}</p><p class="notice">Proposée par ${esc(p.by)}</p></div>
-    <p class="notice">Après que le joueur a répondu, les joueurs actifs et le host votent. La majorité décide.</p>
-    <button class="primary" style="width:100%" onclick="openVote()">Ouvrir le vote</button>`;
+
+function confirmTop3() {
+  if (chosen.length !== 3) {
+    alert("Sélectionne exactement 3 propositions.");
+    return;
+  }
+
+  chosen = chosen.map(i => proposals[i]);
+  attempt = 0;
+  showChallenge();
 }
-function openVote(){
-  phase="vote";votes={};
-  const voters=players.filter(p=>p.alive);
-  $("gameMsg").textContent="Vote de démonstration : indique le résultat de chaque participant.";
-  $("turnArea").innerHTML=`<div id="voteCards"></div><p id="voteCount" class="notice">0 / ${voters.length} votes</p><button class="primary" style="width:100%" onclick="countVotes()">Calculer la majorité</button>`;
-  $("voteCards").innerHTML=voters.map((p,i)=>`<div class="prompt"><div class="row"><strong>${esc(p.name)}</strong>${p.host?'<span class="tag">HOST</span>':""}</div><div class="actions"><button class="secondary" onclick="castVote(${i},true,this)">✓ Validé</button><button class="danger" onclick="castVote(${i},false,this)">✕ Refusé</button></div></div>`).join("");
+
+function showChallenge() {
+  phase = "challenge";
+  const p = chosen[attempt];
+
+  $("gameTitle").textContent = selected.name + " : " + kind;
+  $("gameMsg").textContent = "Proposition " + (attempt+1) + " sur 3";
+
+  $("turnArea").innerHTML = `
+    <div class="prompt">
+      <span class="tag">${kind.toUpperCase()}</span>
+      <p style="font-size:19px">${esc(p.text)}</p>
+      <p class="notice">Proposée par ${esc(p.by)}</p>
+    </div>
+    <p class="notice">Après le défi, les joueurs actifs et le host votent. La majorité décide.</p>
+    <button class="primary" style="width:100%" onclick="openVote()">Ouvrir le vote</button>
+  `;
 }
-function castVote(i,yes,btn){
-  votes[i]=yes;
-  btn.parentElement.querySelectorAll("button").forEach(b=>b.disabled=true);
-  $("voteCount").textContent=Object.keys(votes).length+" / "+players.filter(p=>p.alive).length+" votes";
+
+function openVote() {
+  phase = "vote";
+  votes = {};
+
+  const voters = players.filter(p => p.alive);
+
+  $("gameMsg").textContent = "Chaque joueur actif vote une seule fois.";
+  $("turnArea").innerHTML = `
+    <div id="voteCards"></div>
+    <p id="voteCount" class="notice">0 / ${voters.length} votes</p>
+    <button class="primary" style="width:100%" onclick="countVotes()">Calculer la majorité</button>
+  `;
+
+  $("voteCards").innerHTML = voters.map((p,i) => `
+    <div class="prompt">
+      <div class="row">
+        <strong>${esc(p.name)}</strong>
+        ${p.host ? '<span class="tag">HOST</span>' : ""}
+      </div>
+      <div class="actions">
+        <button class="secondary" onclick="castVote(${i},true,this)">✓ Validé</button>
+        <button class="danger" onclick="castVote(${i},false,this)">✕ Refusé</button>
+      </div>
+    </div>
+  `).join("");
 }
-function countVotes(){
-  const voters=players.filter(p=>p.alive);
-  if(Object.keys(votes).length<voters.length){alert("Attends le vote de tous les participants actifs.");return}
-  const yes=Object.values(votes).filter(Boolean).length;
-  if(yes>voters.length/2){
-    previousWinner=selected.name;
-    $("gameTitle").textContent="✦ DÉFI VALIDÉ ✦";
-    $("gameMsg").textContent=selected.name+" est qualifié pour la suite.";
-    $("turnArea").innerHTML='<button class="primary" style="width:100%" onclick="nextRound()">Tour suivant →</button>';
-  }else{
+
+function castVote(i, yes, btn) {
+  if (Object.prototype.hasOwnProperty.call(votes,i)) return;
+
+  votes[i] = yes;
+  btn.parentElement.querySelectorAll("button").forEach(b => b.disabled = true);
+
+  $("voteCount").textContent =
+    Object.keys(votes).length + " / " + players.filter(p => p.alive).length + " votes";
+}
+
+function countVotes() {
+  const voters = players.filter(p => p.alive);
+
+  if (Object.keys(votes).length < voters.length) {
+    alert("Attends le vote de tous les joueurs actifs.");
+    return;
+  }
+
+  const yes = Object.values(votes).filter(Boolean).length;
+
+  if (yes > voters.length/2) {
+    previousWinner = selected.name;
+
+    $("gameTitle").textContent = "✦ DÉFI VALIDÉ ✦";
+    $("gameMsg").textContent = selected.name + " est qualifié pour la suite.";
+    $("turnArea").innerHTML =
+      '<button class="primary" style="width:100%" onclick="nextRound()">Tour suivant →</button>';
+  } else {
     attempt++;
-    if(attempt<3){
-      $("gameTitle").textContent="Pas encore validé";
-      $("gameMsg").textContent="La majorité a refusé. Essaie la proposition suivante.";
-      $("turnArea").innerHTML='<button class="primary" style="width:100%" onclick="showChallenge()">Proposition suivante →</button>';
-    }else{
-      selected.alive=false;
-      $("gameTitle").textContent="Joueur éliminé";
-      $("gameMsg").textContent=selected.name+" est éliminé et peut désormais regarder la partie.";
-      $("turnArea").innerHTML='<button class="primary" style="width:100%" onclick="nextRound()">Continuer la partie →</button>';
+
+    if (attempt < 3) {
+      $("gameTitle").textContent = "Pas encore validé";
+      $("gameMsg").textContent = "La majorité a refusé. Essaie la proposition suivante.";
+      $("turnArea").innerHTML =
+        '<button class="primary" style="width:100%" onclick="showChallenge()">Proposition suivante →</button>';
+    } else {
+      selected.alive = false;
+      $("gameTitle").textContent = "Joueur éliminé";
+      $("gameMsg").textContent = selected.name + " est éliminé et devient spectateur.";
+      $("turnArea").innerHTML =
+        '<button class="primary" style="width:100%" onclick="nextRound()">Continuer la partie →</button>';
     }
   }
+
   renderGamePlayers();
 }
-function renderGamePlayers(){
-  $("gamePlayers").innerHTML=players.map(p=>`<div class="player">${esc(p.name)}${p.alive?'<small>En jeu</small>':'<small>Éliminé · Spectateur</small>'}</div>`).join("");
-  $("aliveCount").textContent=players.filter(p=>p.alive).length+" joueurs actifs";
+
+function renderGamePlayers() {
+  $("gamePlayers").innerHTML = players.map(p =>
+    `<div class="player">${esc(p.name)}${p.alive ? "<small>En jeu</small>" : "<small>Éliminé · Spectateur</small>"}</div>`
+  ).join("");
+
+  $("aliveCount").textContent =
+    players.filter(p => p.alive).length + " joueurs actifs";
 }
-function goHome(){
-  room=null;me=null;isHost=false;players=[];phase="lobby";
-  $("nickname").value="";$("joinCode").value="";$("homeMsg").textContent="";
+
+function goHome() {
+  room = null;
+  me = null;
+  isHost = false;
+  players = [];
+  round = 0;
+  selected = null;
+  previousWinner = null;
+  phase = "lobby";
+
+  $("nickname").value = "";
+  $("joinCode").value = "";
+  $("homeMsg").textContent = "";
+
   show("home");
 }
-function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 </script>
 </body>
 </html>
+
 
