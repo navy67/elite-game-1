@@ -792,36 +792,55 @@ async function chooseKind(k) {
 }
 
 
-function submitProposal() {
-  const by = $("proposer").value;
-  const value = $("proposal").value.trim();
 
-  if (!by || by === selected.name) {
-    alert("The selected player cannot submit a proposal.");
-    return;
-  }
+async function submitProposal() {
+  const value = $("proposal")?.value.trim();
+  const code = sessionStorage.getItem("tod_room_code");
+  const token = sessionStorage.getItem("tod_player_token");
 
-  if (!players.some(p => p.alive && p.name === by)) {
-    alert("This player is not active.");
-    return;
-  }
-
-  if (proposals.some(p => p.by === by)) {
-    alert("This player has already submitted a proposal.");
-    return;
-  }
   if (!value) {
     alert("Write your proposal before submitting it.");
     return;
   }
 
-  proposals.push({by, text:value});
-  $("proposal").value = "";
+  if (!code || !token) {
+    alert("Your room session is missing. Please rejoin.");
+    return;
+  }
 
-  const option = [...$("proposer").options].find(o => o.value === by);
-  if (option) option.remove();
+  const button = document.querySelector(
+    '#turnArea button[onclick="submitProposal()"]'
+  );
 
-  updateProposalProgress();
+  if (button) button.disabled = true;
+
+  const { data, error } = await supabaseClient.rpc(
+    "tod_submit_prompt",
+    {
+      p_code: code,
+      p_player_token: token,
+      p_prompt_text: value
+    }
+  );
+
+  if (error) {
+    console.error("Submit proposal error:", error);
+    alert("Could not submit: " + error.message);
+    if (button) button.disabled = false;
+    return;
+  }
+
+  const input = $("proposal");
+  if (input) input.disabled = true;
+
+  if (button) button.textContent = "Proposal submitted";
+
+  $("gameMsg").textContent =
+    "Your proposal has been submitted. Waiting for the others...";
+
+  if ($("proposalCount")) {
+    $("proposalCount").textContent = "Proposal submitted successfully.";
+  }
 }
 
 function updateProposalProgress() {
