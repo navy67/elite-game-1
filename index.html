@@ -756,7 +756,8 @@ async function drawPlayer() {
 
   await new Promise(resolve => setTimeout(resolve, 1000));
 
-  // Refresh the shared game state on every device.
+  // Allow the host to synchronize the official result.
+  phase = "choice";
   await syncGameState();
 }
 
