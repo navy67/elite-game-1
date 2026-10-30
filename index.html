@@ -534,6 +534,48 @@ console.log("SELECTED PLAYER:", data.selected_player_id);
     startProposalSync();
   }
 }
+ if (phase === "top3" && selected) {
+  const myId = sessionStorage.getItem("tod_player_id");
+
+  if (selected.id === myId) {
+    const code = sessionStorage.getItem("tod_room_code");
+    const token = sessionStorage.getItem("tod_player_token");
+
+    $("gameTitle").textContent = "✦ YOUR TOP 3 ✦";
+    $("gameMsg").textContent =
+      "Choose your challenge from these three proposals.";
+
+    const { data, error } = await supabaseClient.rpc(
+      "tod_get_top_three",
+      {
+        p_code: code,
+        p_player_token: token
+      }
+    );
+
+    if (error) {
+      console.error("Get Top 3 error:", error);
+      $("gameMsg").textContent = error.message;
+      return;
+    }
+
+    $("turnArea").innerHTML = (data.prompts || [])
+      .map((p, i) => `
+        <div class="notice">
+          <strong>OPTION ${i + 1}</strong>
+          <p>${esc(p.prompt_text)}</p>
+        </div>
+      `)
+      .join("");
+  } else {
+    $("gameTitle").textContent = "✦ TOP 3 SELECTED ✦";
+    $("gameMsg").textContent =
+      "The selected player is choosing a proposal.";
+
+    $("turnArea").innerHTML =
+      '<p class="notice">Waiting for the selected player...</p>';
+  }
+} 
 let gameSyncTimer = null;
 
 function startGameSync() {
