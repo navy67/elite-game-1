@@ -916,13 +916,20 @@ async function syncProposalProgress() {
   }
 
   if (!data) return;
+const counter = $("proposalCount");
 
-  const counter = $("proposalCount");
-  if (counter) {
+if (counter) {
+  if (data.submitted >= data.total && data.total > 0) {
+    counter.textContent =
+      "All proposals received! Submission round complete.";
+
+    $("gameMsg").textContent =
+      "All players have submitted. The submission round is complete.";
+  } else {
     counter.textContent =
       `${data.submitted} / ${data.total} proposals submitted`;
   }
-
+}
   if (data.is_selected) {
     $("gameMsg").textContent =
       "Waiting for other players to submit their proposals...";
