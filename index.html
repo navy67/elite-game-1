@@ -431,6 +431,9 @@ async function syncGameState() {
   round = data.round_number;
   kind = data.selected_kind || "";
   phase = data.game_phase || phase;
+  console.log("GAME PHASE:", data.game_phase);
+console.log("SELECTED KIND:", data.selected_kind);
+console.log("SELECTED PLAYER:", data.selected_player_id);
 
   selected = data.selected_player_id
     ? players.find(p => p.id === data.selected_player_id) || null
