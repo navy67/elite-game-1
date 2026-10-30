@@ -895,7 +895,39 @@ async function submitProposal() {
     $("proposalCount").textContent = "Proposal submitted successfully.";
   }
 }
+async function selectTopThree() {
+  const selectedIds = Array.from(
+    document.querySelectorAll(".topThreeChoice:checked")
+  ).map(input => input.value);
 
+  if (selectedIds.length !== 3) {
+    alert("You must select exactly 3 proposals.");
+    return;
+  }
+
+  const code = sessionStorage.getItem("tod_room_code");
+  const token = sessionStorage.getItem("tod_player_token");
+
+  const { data, error } = await supabaseClient.rpc(
+    "tod_select_top_three",
+    {
+      p_code: code,
+      p_player_token: token,
+      p_prompt_ids: selectedIds
+    }
+  );
+
+  if (error) {
+    console.error("Top 3 selection error:", error);
+    alert(error.message);
+    return;
+  }
+
+  $("gameMsg").textContent =
+    "Top 3 successfully selected!";
+
+  await syncGameState();
+}
 async function syncProposalProgress() {
   const code = sessionStorage.getItem("tod_room_code");
   const token = sessionStorage.getItem("tod_player_token");
