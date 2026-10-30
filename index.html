@@ -943,30 +943,42 @@ if (counter) {
     return;
   }
 
-  if (data.is_host && Array.isArray(data.prompts)) {
-    const existing = $("hostPromptList");
+ if (data.is_host && Array.isArray(data.prompts)) {
+  const existing = $("hostPromptList");
 
-    if (!existing) {
-      const list = document.createElement("div");
-      list.id = "hostPromptList";
-      list.className = "notice";
-      $("turnArea").appendChild(list);
-    }
-
-    $("hostPromptList").innerHTML = data.prompts
-      .map((p, i) =>
-        `<p>${i + 1}. ${esc(p.prompt_text)}</p>`
-      )
-      .join("");
+  if (!existing) {
+    const list = document.createElement("div");
+    list.id = "hostPromptList";
+    list.className = "notice";
+    $("turnArea").appendChild(list);
   }
 
-  const finish = $("finishProposalsBtn");
-  if (finish) {
-    finish.disabled =
-      data.submitted < data.total || data.total < 3;
+  if (data.submitted >= data.total && data.total > 0) {
+    $("hostPromptList").innerHTML = `
+      <h3>✦ ALL PROPOSALS RECEIVED ✦</h3>
+      <p>Select the 3 best proposals:</p>
+
+      ${data.prompts.map((p, i) => `
+        <label style="display:block;margin:12px 0">
+          <input type="checkbox"
+            class="topThreeChoice"
+            value="${esc(p.id)}">
+          ${esc(p.prompt_text)}
+        </label>
+      `).join("")}
+
+      <button class="primary"
+        onclick="selectTopThree()">
+        CONFIRM TOP 3
+      </button>
+    `;
+  } else {
+    $("hostPromptList").innerHTML = `
+      <p>${data.submitted} / ${data.total} proposals submitted</p>
+      <p>Waiting for all players...</p>
+    `;
   }
 }
-
 let proposalSyncTimer = null;
 
 function startProposalSync() {
