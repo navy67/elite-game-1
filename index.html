@@ -399,7 +399,6 @@ function startLobbySync() {
   }, 2000);
 }
 async function syncGameState() {
-    if (phase === "spinning") return;
   
   const code = sessionStorage.getItem("tod_room_code");
   const token = sessionStorage.getItem("tod_player_token");
