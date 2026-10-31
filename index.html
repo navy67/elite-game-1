@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -57,13 +58,40 @@ hr{border:0;border-top:1px solid #ffffff14;margin:18px 0}
 .wheel-pointer{font-size:30px;line-height:1;color:#ffd7ff;filter:drop-shadow(0 0 8px #d16dff)}
 .wheel{width:min( min(76vw, 390px), 390px);aspect-ratio:1;border-radius:50%;position:relative;
   border:7px solid #d5a6ff;box-shadow:0 0 0 5px #2b1740,0 0 35px #a34aff66;
-  overflow:hidden;transition:transform 6s cubic-bezier(.10,.78,.12,1);background:#241535}
+  overflow:hidden;transition:transform 7.5s cubic-bezier(.08,.82,.12,1);background:#241535}
 .wheel canvas{display:block;width:100%;height:100%}
 .wheel-center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
   width:24%;aspect-ratio:1;border-radius:50%;display:grid;place-items:center;
   background:linear-gradient(145deg,#f0c7ff,#8b42f5);border:5px solid #fff;
   color:#241033;font-weight:1000;font-size:clamp(10px,2.5vw,17px);box-shadow:0 0 20px #0008}
 .wheel-result{font-size:22px;font-weight:900;color:#e3c1ff;text-align:center;min-height:32px}
+
+
+/* ELITE DRAFT ROOM — new Top 3 visual direction */
+.top3-shell{margin-top:24px;padding:22px;border:1px solid #344653;border-radius:12px;background:linear-gradient(145deg,#111d27,#0b121a);box-shadow:0 20px 55px #0008;position:relative;overflow:hidden}
+.top3-shell:before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:linear-gradient(#61e7d5,#7b8cff,#ffbd69)}
+.top3-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px}
+.top3-kicker{font-size:10px;letter-spacing:3px;color:#61e7d5;font-weight:900}
+.top3-title{font-size:25px;font-weight:950;margin:7px 0;color:#f4f8fb;letter-spacing:-.7px}
+.top3-count{white-space:nowrap;border:1px solid #4a6972;background:#142b32;color:#9cf8e8;border-radius:7px;padding:9px 12px;font-size:12px;font-weight:900;font-variant-numeric:tabular-nums}
+.top3-help{font-size:13px;color:#9aabb8;line-height:1.65;margin:8px 0 19px;max-width:620px}
+.top3-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.top3-option{display:grid;grid-template-columns:42px 1fr;align-items:start;gap:12px;padding:16px 14px;border:1px solid #293b48;border-radius:10px;background:#14212c;cursor:pointer;transition:all .18s ease;min-height:116px}
+.top3-option:hover{border-color:#61e7d5;transform:translateY(-2px);background:#182b35}
+.top3-option:has(.topThreeChoice:checked){border-color:#61e7d5;background:linear-gradient(135deg,#173b3d,#172b3b);box-shadow:inset 0 0 0 1px #61e7d566,0 9px 24px #0005}
+.top3-option input{appearance:none;width:24px;height:24px;margin:2px 0 0;border:1px solid #607887;border-radius:6px;background:#0a141c;cursor:pointer;position:relative}
+.top3-option input:checked{border-color:#61e7d5;background:#61e7d5}
+.top3-option input:checked:after{content:'✓';position:absolute;inset:0;display:grid;place-items:center;color:#092026;font-size:16px;font-weight:1000}
+.top3-option-copy{min-width:0}
+.top3-option-meta{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:9px}
+.top3-option-number{font-size:10px;letter-spacing:1.8px;color:#61e7d5;font-weight:950}
+.top3-selected-tag{font-size:9px;letter-spacing:1px;color:#092026;background:#61e7d5;border-radius:4px;padding:4px 6px;opacity:0;font-weight:950}
+.top3-option:has(.topThreeChoice:checked) .top3-selected-tag{opacity:1}
+.top3-option-text{display:block;color:#e8f0f4;font-size:14px;line-height:1.55;overflow-wrap:anywhere}
+.top3-confirm{width:100%;margin-top:18px;padding:16px;border-radius:8px;background:linear-gradient(100deg,#31bfae,#6de4d2);color:#071b20;letter-spacing:1.6px;font-size:12px;font-weight:1000;box-shadow:0 8px 25px #35cdb333}
+.top3-confirm:disabled{filter:grayscale(.7);opacity:.4;box-shadow:none}
+.top3-footnote{text-align:center;color:#8194a1;font-size:11px;margin:12px 0 0}
+
 
 </style>
 </head>
@@ -168,6 +196,7 @@ let selected = null;
 let kind = "";
 let proposals = [];
 let chosen = [];
+let top3SelectedIds = new Set();
 let attempt = 0;
 let previousWinner = null;
 let phase = "lobby";
@@ -807,7 +836,7 @@ async function drawPlayer() {
   const wheel = $("rouletteWheel");
   if (wheel) wheel.style.transform = `rotate(${finalRotation}deg)`;
 
-  await new Promise(resolve => setTimeout(resolve, 6400));
+  await new Promise(resolve => setTimeout(resolve, 7800));
 
   const result = $("wheelResult");
   if (result) result.textContent = "✦ " + winnerName + " ✦";
@@ -951,10 +980,35 @@ async function submitProposal() {
     $("proposalCount").textContent = "Proposal submitted successfully.";
   }
 }
+function updateTop3Selection(changedInput) {
+  // Keep the selection in memory, not only in the DOM. Polling/re-rendering
+  // can rebuild the cards without losing the host's choices.
+  if (changedInput) {
+    const id = String(changedInput.value);
+    if (changedInput.checked) {
+      if (top3SelectedIds.size >= 3) {
+        changedInput.checked = false;
+        alert("You can select only 3 proposals.");
+        return;
+      }
+      top3SelectedIds.add(id);
+    } else {
+      top3SelectedIds.delete(id);
+    }
+  }
+  document.querySelectorAll(".topThreeChoice").forEach(input => {
+    input.checked = top3SelectedIds.has(String(input.value));
+    input.disabled = !input.checked && top3SelectedIds.size >= 3;
+  });
+  const count = top3SelectedIds.size;
+  const countLabel = $("top3Count");
+  const confirmButton = $("confirmTop3Btn");
+  if (countLabel) countLabel.textContent = `${count} / 3 SELECTED`;
+  if (confirmButton) confirmButton.disabled = count !== 3;
+}
+
 async function selectTopThree() {
-  const selectedIds = Array.from(
-    document.querySelectorAll(".topThreeChoice:checked")
-  ).map(input => input.value);
+  const selectedIds = Array.from(top3SelectedIds);
 
   if (selectedIds.length !== 3) {
     alert("You must select exactly 3 proposals.");
@@ -979,6 +1033,7 @@ async function selectTopThree() {
     return;
   }
 
+  top3SelectedIds.clear();
   $("gameMsg").textContent =
     "Top 3 successfully selected!";
 
@@ -1047,27 +1102,43 @@ if (counter) {
     // Build the checkboxes only once. Rebuilding them every poll erased selections.
     if (promptList.dataset.ready !== "true") {
       promptList.innerHTML = `
-        <h3>✦ ALL PROPOSALS RECEIVED ✦</h3>
-        <p>Select the 3 best proposals:</p>
-
-        ${data.prompts.map((p) => `
-          <label style="display:block;margin:12px 0">
-            <input type="checkbox"
-              class="topThreeChoice"
-              value="${esc(p.id)}">
-            ${esc(p.prompt_text)}
-          </label>
-        `).join("")}
-
-        <button class="primary"
-          onclick="selectTopThree()">
-          CONFIRM TOP 3
-        </button>
+        <div class="top3-shell">
+          <div class="top3-heading">
+            <div>
+              <div class="top3-kicker">ELITE LEADERS · CHALLENGE DRAFTS</div>
+              <div class="top3-title">Build the Top 3</div>
+            </div>
+            <div class="top3-count" id="top3Count">0 / 3 SELECTED</div>
+          </div>
+          <p class="top3-help">Review every submission and choose exactly three challenges for the selected player.</p>
+          <div class="top3-list">
+            ${data.prompts.map((p, i) => `
+              <label class="top3-option">
+                <input type="checkbox" class="topThreeChoice"
+                  value="${esc(p.id)}" ${top3SelectedIds.has(String(p.id)) ? "checked" : ""}
+                  onchange="updateTop3Selection(this)">
+                <span class="top3-option-copy">
+                  <span class="top3-option-meta">
+                    <span class="top3-option-number">PROPOSAL ${String(i + 1).padStart(2, '0')}</span>
+                    <span class="top3-selected-tag">SELECTED</span>
+                  </span>
+                  <span class="top3-option-text">${esc(p.prompt_text)}</span>
+                </span>
+              </label>
+            `).join("")}
+          </div>
+          <button id="confirmTop3Btn" class="top3-confirm" onclick="selectTopThree()" disabled>
+            CONFIRM TOP 3 <span aria-hidden="true">→</span>
+          </button>
+          <p class="top3-footnote">Select 3 proposals to unlock confirmation.</p>
+        </div>
       `;
       promptList.dataset.ready = "true";
+      updateTop3Selection();
     }
   } else {
     promptList.dataset.ready = "false";
+    top3SelectedIds.clear();
     promptList.innerHTML = `
       <p>${data.submitted} / ${data.total} proposals submitted</p>
       <p>Waiting for all players...</p>
