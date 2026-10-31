@@ -223,7 +223,8 @@ hr{border:0;border-top:1px solid #ffffff14;margin:18px 0}
     <p id="winners" class="subtitle"></p>
     <div class="eyebrow" style="margin:22px 0 0">FINAL LEADERBOARD</div>
     <div id="leaderboard" class="board"></div>
-    <button class="primary" onclick="goHome()">Back to Home</button>
+    <div id="playAgainBox"></div>
+    <button class="secondary" style="width:100%;margin-top:10px" onclick="goHome()">Back to Home</button>
   </div>
 </section>
 </main>
@@ -261,6 +262,7 @@ let spinPending = false;   // host pressed the spin button, waiting for the serv
 let lobbySyncInterval = null;
 let gameSyncTimer = null;
 let proposalSyncTimer = null;
+let endSyncTimer = null;
 
 function show(id) {
   ["home","lobby","game","end"].forEach(
@@ -282,6 +284,7 @@ function stopTimers() {
   if (lobbySyncInterval) { clearInterval(lobbySyncInterval); lobbySyncInterval = null; }
   if (gameSyncTimer) { clearInterval(gameSyncTimer); gameSyncTimer = null; }
   if (proposalSyncTimer) { clearInterval(proposalSyncTimer); proposalSyncTimer = null; }
+  if (endSyncTimer) { clearInterval(endSyncTimer); endSyncTimer = null; }
 }
 
 function nickname() {
@@ -1098,7 +1101,83 @@ function finishGame(data) {
     `;
   }).join("");
 
+  // Only the host can start a new game; the others wait on this screen and
+  // are taken back to the waiting room automatically.
+  const amHost = !!(data && data.you && data.you.is_host);
+  $("playAgainBox").innerHTML = amHost
+    ? `<button id="playAgainBtn" class="primary" style="width:100%" onclick="playAgain()">↻ Play Again</button>
+       <p class="notice">Everybody goes back to the waiting room with the same room code.</p>`
+    : '<p class="notice">Waiting for the host to start a new game...</p>';
+
   show("end");
+  startEndSync();
+}
+
+// While the final screen is open, watch the room: when the host restarts,
+// everybody returns to the waiting room.
+function startEndSync() {
+  if (endSyncTimer) clearInterval(endSyncTimer);
+  endSyncTimer = setInterval(syncEnd, 2000);
+}
+
+async function syncEnd() {
+  const code = sessionStorage.getItem("tod_room_code");
+  const token = sessionStorage.getItem("tod_player_token");
+  if (!code || !token) return;
+
+  const { data, error } = await supabaseClient.rpc("tod_get_room_state", {
+    p_code: code,
+    p_player_token: token
+  });
+
+  if (error || !data || data.status !== "waiting") return;
+
+  if (endSyncTimer) { clearInterval(endSyncTimer); endSyncTimer = null; }
+
+  // Clean local state, then go back to the waiting room.
+  players = (data.players || []).map(p => ({
+    id: p.id,
+    name: p.nickname,
+    host: p.is_host,
+    alive: p.is_alive
+  }));
+  round = 0;
+  selected = null;
+  kind = "";
+  roomState = null;
+  drawPool = [];
+  lastViewKey = "";
+  proposalSent = false;
+  spinPending = false;
+  top3SelectedIds.clear();
+  phase = "lobby";
+
+  renderLobby();
+  show("lobby");
+  startLobbySync();
+}
+
+// Host only: reset the room, then everybody is taken back to the waiting room.
+async function playAgain() {
+  const btn = $("playAgainBtn");
+  if (btn) btn.disabled = true;
+
+  const code = sessionStorage.getItem("tod_room_code");
+  const token = sessionStorage.getItem("tod_player_token");
+
+  const { error } = await supabaseClient.rpc("tod_restart_game", {
+    p_code: code,
+    p_player_token: token
+  });
+
+  if (error) {
+    console.error("Restart error:", error);
+    alert("Could not restart the game: " + error.message);
+    if (btn) btn.disabled = false;
+    return;
+  }
+
+  await syncEnd();
 }
 
 function renderGamePlayers() {
@@ -1585,3 +1664,4 @@ function goHome() {
 </script>
 </body>
 </html>
+
