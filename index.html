@@ -87,6 +87,12 @@ hr{border:0;border-top:1px solid #ffffff14;margin:18px 0}
 .board-badge.win{color:#1d0f33;background:#e3c1ff}
 .board-badge.out{color:#d9a7b8;border:1px solid #70394f}
 
+/* Leave / kick buttons */
+.kick-btn{display:block;margin-top:9px;padding:6px 10px;font-size:11px;border-radius:8px;
+  background:#512039;color:#ffd7e5;border:1px solid #7a3552}
+.leave-btn{padding:8px 12px;font-size:12px;border-radius:10px;background:#251833;
+  border:1px solid var(--border);color:#e8d6ff}
+
 
 /* ELITE DRAFT ROOM — new Top 3 visual direction */
 .top3-shell{margin-top:24px;padding:22px;border:1px solid #344653;border-radius:12px;background:linear-gradient(145deg,#111d27,#0b121a);box-shadow:0 20px 55px #0008;position:relative;overflow:hidden}
@@ -195,7 +201,7 @@ hr{border:0;border-top:1px solid #ffffff14;margin:18px 0}
     <div id="lobbyPlayers" class="players"></div>
     <p class="notice">At least 4 real players must join using the room code before the host can start.</p>
     <button id="startBtn" class="primary" style="width:100%;margin-top:12px" onclick="startGame()">Start Game</button>
-    <button class="secondary" style="width:100%;margin-top:10px" onclick="goHome()">Leave Room</button>
+    <button class="secondary" style="width:100%;margin-top:10px" onclick="leaveRoom()">Leave Room</button>
     <p id="lobbyMsg" class="notice" aria-live="polite"></p>
   </div>
 </section>
@@ -205,6 +211,7 @@ hr{border:0;border-top:1px solid #ffffff14;margin:18px 0}
     <div class="row">
       <span class="tag" id="roundTag">ROUND 1</span>
       <span id="aliveCount" class="status"></span>
+      <button class="leave-btn" onclick="leaveRoom()">⎋ Leave game</button>
     </div>
     <h2 id="gameTitle" style="margin-top:18px">The draw is about to begin...</h2>
     <p id="gameMsg" class="subtitle"></p>
@@ -224,7 +231,7 @@ hr{border:0;border-top:1px solid #ffffff14;margin:18px 0}
     <div class="eyebrow" style="margin:22px 0 0">FINAL LEADERBOARD</div>
     <div id="leaderboard" class="board"></div>
     <div id="playAgainBox"></div>
-    <button class="secondary" style="width:100%;margin-top:10px" onclick="goHome()">Back to Home</button>
+    <button class="secondary" style="width:100%;margin-top:10px" onclick="leaveRoom()">Leave &amp; Back to Home</button>
   </div>
 </section>
 </main>
@@ -410,7 +417,7 @@ function renderLobby() {
   $("roomCode").textContent = room;
   $("playerCount").textContent = players.length + " player(s)";
   $("lobbyPlayers").innerHTML = players.map(p =>
-    `<div class="player">✦ ${esc(p.name)}${p.host ? "<small>HOST</small>" : "<small>Player</small>"}</div>`
+    `<div class="player">✦ ${esc(p.name)}${p.host ? "<small>HOST</small>" : "<small>Player</small>"}${kickBtn(p)}</div>`
   ).join("");
 
   $("startBtn").disabled = players.length < 4;
@@ -435,6 +442,7 @@ async function syncLobby() {
 
   if (error) {
     console.error("Lobby sync error:", error);
+    if (handleGone(error)) return;
     $("lobbyMsg").textContent = "Sync error: " + error.message;
     return;
   }
@@ -626,6 +634,7 @@ async function syncGameState() {
 
     if (error) {
       console.error("Game sync error:", error);
+      if (handleGone(error)) return;
       return;
     }
 
@@ -1130,6 +1139,7 @@ async function syncEnd() {
     p_player_token: token
   });
 
+  if (error && handleGone(error)) return;
   if (error || !data || data.status !== "waiting") return;
 
   if (endSyncTimer) { clearInterval(endSyncTimer); endSyncTimer = null; }
@@ -1187,6 +1197,7 @@ function renderGamePlayers() {
   $("gamePlayers").innerHTML = players.map(p => `
     <div class="player">${esc(p.name)}${p.host ? ' <span class="tag">HOST</span>' : ""}
       <small>${p.alive ? (p.id === selId ? "✦ Selected" : "Active") : "Eliminated · Spectator"}</small>
+      ${kickBtn(p)}
     </div>
   `).join("");
 
@@ -1447,6 +1458,7 @@ async function syncProposalProgress() {
 
   if (error) {
     console.error("Proposal progress error:", error);
+    if (handleGone(error)) return;
     return;
   }
 
@@ -1638,6 +1650,81 @@ async function continueGame() {
   await syncGameState();
 }
 
+/* ------------------------------------------------------------------ */
+/* Leave the game / kick a player                                      */
+/* ------------------------------------------------------------------ */
+
+// The "Kick" button is shown to the host, on every player except the host.
+function kickBtn(p) {
+  if (!isHost || p.host) return "";
+  return `<button class="kick-btn" onclick="kickPlayer('${esc(p.id)}')">✕ Kick</button>`;
+}
+
+// A polling call fails with one of these messages when this player was removed
+// from the room, or when the host closed the room.
+function handleGone(error) {
+  const m = (error && error.message) || "";
+
+  if (/Invalid room code or player token|Invalid player session|Room not found/i.test(m)) {
+    goHome();
+    $("homeMsg").textContent =
+      "You are no longer in this room: you were removed, or the host closed it.";
+    return true;
+  }
+
+  return false;
+}
+
+async function leaveRoom() {
+  const code = sessionStorage.getItem("tod_room_code");
+  const token = sessionStorage.getItem("tod_player_token");
+
+  const ok = confirm(
+    isHost
+      ? "You are the host: leaving closes the room for everybody. Leave anyway?"
+      : "Leave this game?"
+  );
+  if (!ok) return;
+
+  stopTimers();
+
+  if (code && token) {
+    await supabaseClient.rpc("tod_leave_room", {
+      p_code: code,
+      p_player_token: token
+    });
+  }
+
+  goHome();
+}
+
+async function kickPlayer(id) {
+  const target = players.find(p => p.id === id);
+  if (!target || !isHost) return;
+
+  if (!confirm("Kick " + target.name + " from the game?")) return;
+
+  const code = sessionStorage.getItem("tod_room_code");
+  const token = sessionStorage.getItem("tod_player_token");
+
+  const { error } = await supabaseClient.rpc("tod_kick_player", {
+    p_code: code,
+    p_player_token: token,
+    p_target_id: id
+  });
+
+  if (error) {
+    console.error("Kick error:", error);
+    alert("Could not kick this player: " + error.message);
+    return;
+  }
+
+  lastViewKey = "";
+
+  if (phase === "lobby") await syncLobby();
+  else await syncGameState();
+}
+
 function goHome() {
   stopTimers();
   SESSION_KEYS.forEach(k => sessionStorage.removeItem(k));
@@ -1664,4 +1751,3 @@ function goHome() {
 </script>
 </body>
 </html>
-
