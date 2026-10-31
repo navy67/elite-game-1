@@ -65,6 +65,28 @@ hr{border:0;border-top:1px solid #ffffff14;margin:18px 0}
   color:#241033;font-weight:1000;font-size:clamp(10px,2.5vw,17px);box-shadow:0 0 20px #0008}
 .wheel-result{font-size:22px;font-weight:900;color:#e3c1ff;text-align:center;min-height:32px}
 
+/* "X has been selected!" banner, shown to every player when the wheel stops */
+.wheel-announce{min-height:64px;width:100%;display:grid;place-items:center;text-align:center;margin-top:4px}
+.wheel-announce.show{animation:announceIn .7s cubic-bezier(.2,1.2,.3,1) both}
+.wheel-announce span{display:inline-block;padding:14px 22px;border-radius:16px;border:1px solid #a98bff;
+  background:linear-gradient(120deg,#3a1d63,#5b2a8f);color:#fff;font-size:clamp(17px,4.6vw,24px);
+  font-weight:900;box-shadow:0 0 34px #a34aff66}
+.wheel-announce b{color:#f0c7ff}
+@keyframes announceIn{from{opacity:0;transform:translateY(14px) scale(.9)}to{opacity:1;transform:none}}
+
+/* Final leaderboard */
+.board{display:grid;gap:9px;margin:20px 0 22px;text-align:left}
+.board-row{display:grid;grid-template-columns:44px minmax(0,1fr) auto;align-items:center;gap:12px;
+  padding:13px 14px;border:1px solid #48305b;border-radius:14px;background:#22152f}
+.board-row.top{border-color:#a98bff;background:linear-gradient(110deg,#33204f,#241535)}
+.board-row.me{box-shadow:inset 0 0 0 1px #f0c7ff88}
+.board-rank{font-size:22px;font-weight:1000;color:#c5a7ff;text-align:center;font-variant-numeric:tabular-nums}
+.board-name{font-weight:800;overflow-wrap:anywhere}
+.board-name small{display:block;color:var(--muted);font-weight:600;margin-top:3px;font-size:12px}
+.board-badge{font-size:11px;font-weight:900;letter-spacing:1px;border-radius:20px;padding:5px 9px;white-space:nowrap}
+.board-badge.win{color:#1d0f33;background:#e3c1ff}
+.board-badge.out{color:#d9a7b8;border:1px solid #70394f}
+
 
 /* ELITE DRAFT ROOM — new Top 3 visual direction */
 .top3-shell{margin-top:24px;padding:22px;border:1px solid #344653;border-radius:12px;background:linear-gradient(145deg,#111d27,#0b121a);box-shadow:0 20px 55px #0008;position:relative;overflow:hidden}
@@ -199,6 +221,8 @@ hr{border:0;border-top:1px solid #ffffff14;margin:18px 0}
     <div style="font-size:48px">♛</div>
     <h2>ELITE CHAMPIONS</h2>
     <p id="winners" class="subtitle"></p>
+    <div class="eyebrow" style="margin:22px 0 0">FINAL LEADERBOARD</div>
+    <div id="leaderboard" class="board"></div>
     <button class="primary" onclick="goHome()">Back to Home</button>
   </div>
 </section>
@@ -622,7 +646,7 @@ async function syncGameState() {
       : null;
 
     if (data.status === "finished" || phase === "finished") {
-      finishGame();
+      finishGame(data);
       return;
     }
 
@@ -656,6 +680,7 @@ function wheelHtml(label) {
         <div class="wheel-center">ELITE</div>
       </div>
       <div class="wheel-result" id="wheelResult">${label}</div>
+      <div class="wheel-announce" id="wheelAnnounce" aria-live="polite"></div>
     </div>
   `;
 }
@@ -699,11 +724,16 @@ function renderSpinPhase(data) {
     wheelHtml("GOOD LUCK")
   );
 
+  const total = data.spin_duration_ms || 15000;
+
+  // Whatever happens below, the screen that sees the spin finish asks the
+  // server to continue (the server refuses if the time is not really up).
+  if ((data.spin_elapsed_ms || 0) >= total + 3800) finishSpin();
+
   if (!changed) return;
 
   drawWheel(pool.map(p => p.name));
 
-  const total = data.spin_duration_ms || 14000;
   const elapsed = Math.min(data.spin_elapsed_ms || 0, total);
   const remaining = total - elapsed;
 
@@ -718,11 +748,23 @@ function renderSpinPhase(data) {
   const result = $("wheelResult");
   if (!wheel) return;
 
+  // The banner every player sees when the wheel stops.
+  const announce = () => {
+    const r = $("wheelResult");
+    const a = $("wheelAnnounce");
+    if (lastViewKey !== key) return;
+    if (r) r.textContent = "✦ " + winnerName + " ✦";
+    if (a && !a.firstChild) {
+      a.innerHTML = `<span><b>${esc(winnerName)}</b> has been selected!</span>`;
+      a.classList.add("show");
+    }
+  };
+
   if (remaining <= 300) {
     // The spin is already over: show the final position directly.
     wheel.style.transition = "none";
     wheel.style.transform = `rotate(${finalRotation}deg)`;
-    if (result) result.textContent = "✦ " + winnerName + " ✦";
+    announce();
     return;
   }
 
@@ -730,10 +772,12 @@ function renderSpinPhase(data) {
   wheel.style.transition = `transform ${remaining}ms cubic-bezier(.12,.6,.1,1)`;
   wheel.style.transform = `rotate(${finalRotation}deg)`;
 
+  setTimeout(announce, remaining);
+
+  // A pause on the winner's name so everybody can read it, then all move on.
   setTimeout(() => {
-    const r = $("wheelResult");
-    if (r && lastViewKey === key) r.textContent = "✦ " + winnerName + " ✦";
-  }, remaining);
+    if (lastViewKey === key) finishSpin();
+  }, remaining + 3500);
 }
 
 function renderChoicePhase(data) {
@@ -1023,7 +1067,7 @@ function renderResultPhase(data) {
   );
 }
 
-function finishGame() {
+function finishGame(data) {
   stopTimers();
 
   const alive = players.filter(p => p.alive);
@@ -1031,6 +1075,28 @@ function finishGame() {
   $("winners").textContent = alive.length
     ? "Winners: " + alive.map(p => p.name).join(", ")
     : "No winners.";
+
+  // Leaderboard: winners first (most challenges passed), then the eliminated
+  // players, the last one eliminated ranking highest.
+  const board = (data && data.leaderboard) || [];
+  const mine = myId();
+  const medal = ["🥇", "🥈", "🥉"];
+
+  $("leaderboard").innerHTML = board.map(row => {
+    const n = row.successes || 0;
+    const detail = n + (n === 1 ? " challenge passed" : " challenges passed");
+    const rankLabel = row.rank <= 3 && row.is_alive ? medal[row.rank - 1] : "#" + row.rank;
+
+    return `
+      <div class="board-row ${row.is_alive ? "top" : ""} ${row.id === mine ? "me" : ""}">
+        <div class="board-rank">${rankLabel}</div>
+        <div class="board-name">${esc(row.nickname)}${row.is_host ? ' <span class="tag">HOST</span>' : ""}${row.id === mine ? " (you)" : ""}
+          <small>${detail}</small>
+        </div>
+        <span class="board-badge ${row.is_alive ? "win" : "out"}">${row.is_alive ? "CHAMPION" : "ELIMINATED"}</span>
+      </div>
+    `;
+  }).join("");
 
   show("end");
 }
@@ -1092,7 +1158,7 @@ function drawWheel(names) {
 }
 
 async function drawPlayer() {
-  if (phase !== "draw") return;
+  if (phase !== "draw" || spinPending) return;
 
   const code = sessionStorage.getItem("tod_room_code");
   const token = sessionStorage.getItem("tod_player_token");
@@ -1102,65 +1168,49 @@ async function drawPlayer() {
     return;
   }
 
-  // The wheel shows the same players the server can choose from.
-  const pool = players.filter(p => drawPool.includes(p.id));
-
-  if (!pool.length) {
+  if (!wheelPlayers().length) {
     $("gameMsg").textContent = "No players are available for the draw.";
     return;
   }
 
-  phase = "spinning";
-  lastViewKey = "";
-  $("gameTitle").textContent = "✦ ELITE ROULETTE ✦";
-  $("gameMsg").textContent = "The wheel is spinning...";
+  // The server chooses the winner and starts the shared spin. Every screen,
+  // including mine, then animates it from the room state.
+  spinPending = true;
+  const btn = $("spinBtn");
+  if (btn) btn.disabled = true;
 
-  $("turnArea").innerHTML = `
-    <div class="wheel-wrap">
-      <div class="wheel-pointer">▼</div>
-      <div class="wheel" id="rouletteWheel">
-        <canvas id="wheelCanvas"></canvas>
-        <div class="wheel-center">ELITE</div>
-      </div>
-      <div class="wheel-result" id="wheelResult">GOOD LUCK</div>
-    </div>
-  `;
-  drawWheel(pool.map(p => p.name));
-
-  // Supabase decides the official player; the wheel animation reveals that result.
-  const { data, error } = await supabaseClient.rpc("tod_draw_player", {
+  const { error } = await supabaseClient.rpc("tod_draw_player", {
     p_code: code,
     p_player_token: token
   });
 
-  if (error || !data) {
+  if (error) {
     console.error("Draw error:", error);
-    phase = "draw";
-    lastViewKey = "";
-    alert("Could not spin: " + (error?.message || "Unknown error"));
-    await syncGameState();
+    spinPending = false;
+    if (btn) btn.disabled = false;
+    alert("Could not spin: " + error.message);
     return;
   }
 
-  const winnerName = data.selected_nickname;
-  const winnerIndex = Math.max(0, pool.findIndex(p => p.id === data.selected_player_id));
-  const sliceDeg = 360 / pool.length;
-  // Pointer is at the top. Rotate the winning segment to the pointer.
-  const segmentCenter = winnerIndex * sliceDeg + sliceDeg / 2;
-  const finalRotation = 360 * 6 + (360 - segmentCenter);
-
-  const wheel = $("rouletteWheel");
-  if (wheel) wheel.style.transform = `rotate(${finalRotation}deg)`;
-
-  await new Promise(resolve => setTimeout(resolve, 7800));
-
-  const result = $("wheelResult");
-  if (result) result.textContent = "✦ " + winnerName + " ✦";
-
-  phase = "choice";
-  lastViewKey = "";
-  await new Promise(resolve => setTimeout(resolve, 900));
   await syncGameState();
+}
+
+// Called when the spin is over: the server moves everybody to the choice screen.
+let finishingSpin = false;
+
+async function finishSpin() {
+  if (finishingSpin) return;
+  finishingSpin = true;
+
+  try {
+    const res = await callGameRpc("tod_finish_spin");
+    if (res) {
+      lastViewKey = "";
+      await syncGameState();
+    }
+  } finally {
+    finishingSpin = false;
+  }
 }
 
 /* ------------------------------------------------------------------ */
