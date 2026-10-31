@@ -46,7 +46,7 @@ input:focus,select:focus{border-color:var(--purple)}
 .choice{width:100%;padding:22px 10px;font-size:20px;border:1px solid #7642a4;background:#241535;color:white}
 .choice strong{display:block;font-size:30px;margin-bottom:8px}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
-.prompt{border:1px solid #583875;background:#211430;padding:17px;border-radius:14px}
+.prompt{border:1px solid #583875;background:#211430;padding:17px;border-radius:14px;margin-top:12px}
 .prompt p{line-height:1.5;overflow-wrap:anywhere}
 .prompt button{width:100%;margin-top:7px}
 footer{text-align:center;padding:20px;color:#887a9a;font-size:12px}
@@ -103,12 +103,20 @@ hr{border:0;border-top:1px solid #ffffff14;margin:18px 0}
 .challenge-pick-list{display:grid;gap:11px;position:relative;z-index:1}
 .challenge-pick-card{display:grid;grid-template-columns:54px minmax(0,1fr) 24px;align-items:center;gap:13px;padding:17px 16px;border:1px solid #373449;border-radius:15px;background:linear-gradient(110deg,#222237,#171827);box-shadow:inset 3px 0 0 #a98bff30;transition:transform .2s,border-color .2s,background .2s}
 .challenge-pick-card:hover{transform:translateX(4px);border-color:#a98bff;background:linear-gradient(110deg,#302b4b,#1b1c2e)}
+/* The cards are real buttons now: the selected player clicks one to take it on. */
+button.challenge-pick-card{width:100%;text-align:left;color:#fff;cursor:pointer;font:inherit}
+button.challenge-pick-card:disabled{opacity:.5;transform:none}
 .challenge-pick-index{font-size:27px;line-height:1;font-weight:1000;letter-spacing:-1px;color:#a98bff;font-variant-numeric:tabular-nums}
 .challenge-pick-label{font-size:9px;letter-spacing:2px;font-weight:950;color:#8e8ba4;margin-bottom:7px}
 .challenge-pick-text{font-family:Georgia,"Times New Roman",serif;font-size:clamp(16px,3.8vw,19px);font-weight:700;line-height:1.45;color:#f6f2ff;overflow-wrap:anywhere}
 .challenge-pick-mark{color:#c5a7ff;font-size:18px;text-align:right;text-shadow:0 0 14px #b28cff80}
 .challenge-pick-footer{display:flex;justify-content:space-between;gap:10px;margin-top:19px;padding-top:13px;border-top:1px solid #ffffff16;color:#77758e;font-size:9px;letter-spacing:2px;font-weight:900}
 @media(max-width:430px){.challenge-pick-card{grid-template-columns:39px minmax(0,1fr) 16px;padding:14px 12px;gap:10px}.challenge-pick-index{font-size:23px}}
+
+/* Challenge / vote / result screens */
+.tally{display:flex;gap:10px;justify-content:center;margin:14px 0 4px;flex-wrap:wrap}
+.tally span{border:1px solid var(--border);background:#22152f;border-radius:10px;padding:9px 14px;font-weight:800;font-size:14px}
+.vote-count{text-align:center;font-weight:800;color:#d7b8ff;font-size:14px;margin:14px 0 4px}
 
 </style>
 </head>
@@ -180,7 +188,7 @@ hr{border:0;border-top:1px solid #ffffff14;margin:18px 0}
     <div id="turnArea"></div>
   </div>
   <div class="panel">
-    <div class="row"><h3>Players Still in the Game</h3><span class="status">ELITE ARENA</span></div>
+    <div class="row"><h3>Players</h3><span class="status">ELITE ARENA</span></div>
     <div id="gamePlayers" class="players"></div>
   </div>
 </section>
@@ -204,6 +212,9 @@ const SUPABASE_KEY = "sb_publishable_AM6NIbruev4ntKaoJCej9A_5g1ehSJu";
 const { createClient } = window.supabase;
 const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
 const $ = id => document.getElementById(id);
+
+const SESSION_KEYS = ["tod_room_code", "tod_player_id", "tod_player_token", "tod_host_token"];
+
 let room = null;
 let me = null;
 let isHost = false;
@@ -211,13 +222,19 @@ let players = [];
 let round = 0;
 let selected = null;
 let kind = "";
-let proposals = [];
-let chosen = [];
 let top3SelectedIds = new Set();
-let attempt = 0;
-let previousWinner = null;
 let phase = "lobby";
-let votes = {};
+
+// Game screen state
+let roomState = null;      // last state received from Supabase
+let drawPool = [];         // ids of the players the wheel can land on
+let lastViewKey = "";      // used to re-render the screen only when something really changed
+let syncing = false;       // prevents two polls from overlapping
+let proposalSent = false;  // true once I have submitted my proposal this round
+
+let lobbySyncInterval = null;
+let gameSyncTimer = null;
+let proposalSyncTimer = null;
 
 function show(id) {
   ["home","lobby","game","end"].forEach(
@@ -229,6 +246,16 @@ function esc(value) {
   return String(value).replace(/[&<>"']/g, c => ({
     "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
   }[c]));
+}
+
+function myId() {
+  return sessionStorage.getItem("tod_player_id");
+}
+
+function stopTimers() {
+  if (lobbySyncInterval) { clearInterval(lobbySyncInterval); lobbySyncInterval = null; }
+  if (gameSyncTimer) { clearInterval(gameSyncTimer); gameSyncTimer = null; }
+  if (proposalSyncTimer) { clearInterval(proposalSyncTimer); proposalSyncTimer = null; }
 }
 
 function nickname() {
@@ -244,15 +271,9 @@ function nickname() {
   return n;
 }
 
-function code6() {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let result = "";
-  for (let i=0; i<6; i++) {
-    result += chars[Math.floor(Math.random()*chars.length)];
-  }
-  return result;
-}
-
+/* ------------------------------------------------------------------ */
+/* Lobby                                                               */
+/* ------------------------------------------------------------------ */
 
 async function createRoom() {
   const n = nickname();
@@ -289,20 +310,20 @@ async function createRoom() {
   }];
 
   round = 0;
-  previousWinner = null;
   phase = "lobby";
+  lastViewKey = "";
 
-    renderLobby();
-    show("lobby");
-    startLobbySync();
+  renderLobby();
+  show("lobby");
+  startLobbySync();
 
-    $("lobbyMsg").textContent =
+  $("lobbyMsg").textContent =
     "Room created! Share this code with your friends.";
 }
+
 function showJoin() {
   $("joinBox").classList.toggle("hidden");
 }
-
 
 async function joinRoom() {
   const n = nickname();
@@ -345,12 +366,12 @@ async function joinRoom() {
   }];
 
   round = 0;
-  previousWinner = null;
   phase = "lobby";
+  lastViewKey = "";
 
- renderLobby();
- show("lobby");
- startLobbySync();
+  renderLobby();
+  show("lobby");
+  startLobbySync();
 
   $("lobbyMsg").textContent =
     "You joined the room! Waiting for the host.";
@@ -368,6 +389,7 @@ function renderLobby() {
     ? (4-players.length) + " more player(s) needed to start."
     : "The room is ready!";
 }
+
 async function syncLobby() {
   const code = sessionStorage.getItem("tod_room_code");
   const token = sessionStorage.getItem("tod_player_token");
@@ -399,21 +421,11 @@ async function syncLobby() {
 
   if (data.status === "playing") {
     round = data.round_number || 1;
-    kind = data.selected_kind || "";
-    selected = data.selected_player_id
-      ? players.find(p => p.id === data.selected_player_id) || null
-      : null;
-
-    proposals = [];
-    chosen = [];
-    attempt = data.attempt_number || 0;
-    votes = {};
     phase = data.game_phase || "draw";
+    lastViewKey = "";
 
     show("game");
     $("roundTag").textContent = "ROUND " + round;
-    $("aliveCount").textContent =
-      players.filter(p => p.alive).length + " active players";
 
     startGameSync();
     await syncGameState();
@@ -422,8 +434,6 @@ async function syncLobby() {
 
   renderLobby();
 }
-
-let lobbySyncInterval = null;
 
 function startLobbySync() {
   if (lobbySyncInterval) {
@@ -441,213 +451,7 @@ function startLobbySync() {
     }
   }, 2000);
 }
-async function syncGameState() {
-  
-  const code = sessionStorage.getItem("tod_room_code");
-  const token = sessionStorage.getItem("tod_player_token");
 
-  if (!code || !token || phase === "lobby") return;
-
-  const { data, error } = await supabaseClient.rpc(
-    "tod_get_room_state",
-    {
-      p_code: code,
-      p_player_token: token
-    }
-  );
-
-  if (error) {
-    console.error("Game sync error:", error);
-    return;
-  }
-
-  if (!data) return;
-
-  // Do not let the background poll replace the roulette while its animation is running.
-  if (phase === "spinning") return;
-
-  players = (data.players || []).map(p => ({
-    id: p.id,
-    name: p.nickname,
-    host: p.is_host,
-    alive: p.is_alive
-  }));
-
-  round = data.round_number;
-  kind = data.selected_kind || "";
-  phase = data.game_phase || phase;
-  console.log("GAME PHASE:", data.game_phase);
-console.log("SELECTED KIND:", data.selected_kind);
-console.log("SELECTED PLAYER:", data.selected_player_id);
-
-  selected = data.selected_player_id
-    ? players.find(p => p.id === data.selected_player_id) || null
-    : null;
-
-  renderGamePlayers();
-
-  if (phase === "draw") {
-    $("roundTag").textContent = "ROUND " + round;
-    $("aliveCount").textContent =
-      players.filter(p => p.alive).length + " active players";
-    $("gameTitle").textContent = "✦ The Elite Roulette";
-    $("gameMsg").textContent =
-      "The lights are on... Who will be chosen?";
-
-    if (isHost) {
-      $("turnArea").innerHTML = `
-        <button class="primary"
-          style="width:100%;padding:20px"
-          onclick="drawPlayer()">
-          ✦ SPIN THE WHEEL ✦
-        </button>
-      `;
-    } else {
-      $("turnArea").innerHTML =
-        '<p class="notice">Waiting for the host to spin the wheel...</p>';
-    }
-  }
-
-  if (phase === "choice" && selected) {
-    $("gameTitle").textContent = "✦ " + selected.name + " ✦";
-    $("gameMsg").textContent =
-      selected.id === sessionStorage.getItem("tod_player_id")
-        ? "You're the chosen one. Truth or Dare?"
-        : selected.name + " is choosing Truth or Dare.";
-
-    if (selected.id === sessionStorage.getItem("tod_player_id")) {
-      $("turnArea").innerHTML = `
-        <div class="actions">
-          <button class="choice" onclick="chooseKind('Truth')">
-            <strong>☾</strong>TRUTH
-          </button>
-          <button class="choice" onclick="chooseKind('Dare')">
-            <strong>⚡</strong>DARE
-          </button>
-        </div>
-      `;
-    } else {
-      $("turnArea").innerHTML =
-        '<p class="notice">Waiting for the selected player...</p>';
-    }
-  }
-  if (phase === "submit" && selected) {
-    const myId = sessionStorage.getItem("tod_player_id");
-
-    $("roundTag").textContent = "ROUND " + round;
-    $("aliveCount").textContent =
-      players.filter(p => p.alive).length + " active players";
-
-    $("gameTitle").textContent =
-      selected.name + " chooses: " + kind;
-
-    if (selected.id === myId) {
-      $("gameMsg").textContent =
-        "Waiting for other players to submit their proposals...";
-
-      $("turnArea").innerHTML = `
-        <p class="notice">
-          The other active players are preparing their proposals.
-          You will see the selected Top 3 when they are ready.
-        </p>
-      `;
-    } else {
-      const inputExists = $("proposal");
-
-      if (!inputExists) {
-        $("gameMsg").textContent =
-          "Submit your own proposal. You can submit only once.";
-
-        $("turnArea").innerHTML = `
-          <p class="notice">
-            Submit one ${kind === "Dare" ? "dare" : "truth question"}.
-          </p>
-          <label for="proposal">Your proposal</label>
-          <input id="proposal" maxlength="180"
-            placeholder="${kind === "Dare" ? "Write your dare..." : "Write your truth question..."}">
-          <button class="secondary"
-            style="width:100%;margin-top:10px"
-            onclick="submitProposal()">
-            Submit Proposal
-          </button>
-          <p id="proposalCount" class="notice">
-            Waiting for proposals...
-          </p>
-        `;
-      }
-    }
-
-    startProposalSync();
-  }
-
- if (phase === "top3" && selected) {
-  const myId = sessionStorage.getItem("tod_player_id");
-
-  if (selected.id === myId) {
-    const code = sessionStorage.getItem("tod_room_code");
-    const token = sessionStorage.getItem("tod_player_token");
-
-    $("gameTitle").textContent = "✦ YOUR TOP 3 ✦";
-    $("gameMsg").textContent =
-      "Choose your challenge from these three proposals.";
-
-    const { data, error } = await supabaseClient.rpc(
-      "tod_get_top_three",
-      {
-        p_code: code,
-        p_player_token: token
-      }
-    );
-
-    if (error) {
-      console.error("Get Top 3 error:", error);
-      $("gameMsg").textContent = error.message;
-      return;
-    }
-
-    $("turnArea").innerHTML = `
-      <div class="challenge-pick-wrap">
-        <div class="challenge-pick-eyebrow">ELITE LEADERS · FINAL SELECTION</div>
-        <div class="challenge-pick-title">PICK YOUR <span>CHALLENGE</span></div>
-        <p class="challenge-pick-subtitle">Three proposals made it to the final. Choose the one you want to take on.</p>
-        <div class="challenge-pick-list">
-          ${(data.prompts || []).map((p, i) => `
-            <article class="challenge-pick-card">
-              <div class="challenge-pick-index">0${i + 1}</div>
-              <div class="challenge-pick-content">
-                <div class="challenge-pick-label">FINALIST ${String(i + 1).padStart(2, '0')}</div>
-                <div class="challenge-pick-text">${esc(p.prompt_text)}</div>
-              </div>
-              <div class="challenge-pick-mark">✦</div>
-            </article>
-          `).join("")}
-        </div>
-        <div class="challenge-pick-footer"><span>THE FINAL 3</span><span>ELITE EDITION</span></div>
-      </div>
-    `;
-  } else {
-    $("gameTitle").textContent = "✦ TOP 3 SELECTED ✦";
-    $("gameMsg").textContent =
-      "The selected player is choosing a proposal.";
-
-    $("turnArea").innerHTML =
-      '<p class="notice">Waiting for the selected player...</p>';
-  }
-} 
-}
-let gameSyncTimer = null;
-
-function startGameSync() {
-  if (gameSyncTimer) {
-    clearInterval(gameSyncTimer);
-  }
-
-  gameSyncTimer = setInterval(() => {
-    if (phase !== "lobby") {
-      syncGameState();
-    }
-  }, 1500);
-}
 function copyCode() {
   if (!navigator.clipboard) {
     alert("Room code: " + room);
@@ -697,78 +501,475 @@ async function startGame() {
   }
 
   round = data.round_number;
-  previousWinner = null;
   selected = null;
   kind = "";
-  proposals = [];
-  chosen = [];
-  attempt = 0;
-  votes = {};
   phase = data.game_phase || "draw";
+  lastViewKey = "";
 
   show("game");
   startGameSync();
   $("roundTag").textContent = "ROUND " + round;
-  $("aliveCount").textContent =
-    players.filter(p => p.alive).length + " active players";
-  $("gameTitle").textContent = "✦ The Elite Roulette";
-  $("gameMsg").textContent =
-    "The lights are on... Who will be chosen?";
-
-  if (isHost) {
-    $("turnArea").innerHTML = `
-      <button class="primary"
-        style="width:100%;padding:20px"
-        onclick="drawPlayer()">
-        ✦ SPIN THE WHEEL ✦
-      </button>
-    `;
-  } else {
-    $("turnArea").innerHTML =
-      '<p class="notice">Waiting for the host to spin the wheel...</p>';
-  }
-
-  renderGamePlayers();
-}
-function nextRound() {
-  const alive = players.filter(p => p.alive);
-
-  // The game ends when only 3 active players remain.
-  if (alive.length <= 3) {
-    $("winners").textContent = alive.length
-      ? "Winners: " + alive.map(p => p.name).join(", ")
-      : "No winners.";
-    show("end");
-    return;
-  }
-
-  round++;
-  selected = null;
-  kind = "";
-  proposals = [];
-  chosen = [];
-  attempt = 0;
-  votes = {};
-  phase = "draw";
-  show("game");
-  $("roundTag").textContent = "ROUND " + round;
-  $("aliveCount").textContent = alive.length + " active players";
   $("gameTitle").textContent = "✦ The Elite Roulette";
   $("gameMsg").textContent = "The lights are on... Who will be chosen?";
-
-  // The host cannot be selected in the first round.
-  const pool = round === 1 ? alive.filter(p => !p.host) : alive;
-
-  if (!pool.length) {
-    $("gameMsg").textContent = "No players are available for the draw.";
-    return;
-  }
-  $("turnArea").innerHTML =
-    '<button class="primary" style="width:100%;padding:20px" onclick="drawPlayer()">✦ SPIN THE WHEEL ✦</button>';
-
   renderGamePlayers();
+
+  await syncGameState();
 }
 
+/* ------------------------------------------------------------------ */
+/* Game: one screen per phase, driven by the state stored in Supabase  */
+/* ------------------------------------------------------------------ */
+
+function startGameSync() {
+  if (gameSyncTimer) {
+    clearInterval(gameSyncTimer);
+  }
+
+  gameSyncTimer = setInterval(() => {
+    if (phase !== "lobby") {
+      syncGameState();
+    }
+  }, 1500);
+}
+
+// Re-renders the main area only when the key changed (so inputs, buttons
+// and the roulette are not wiped by the background polling).
+function setView(key, title, msg, html) {
+  if (key === lastViewKey) return false;
+  lastViewKey = key;
+  $("gameTitle").textContent = title;
+  $("gameMsg").textContent = msg;
+  $("turnArea").innerHTML = html;
+  return true;
+}
+
+// Calls a game function with the room code and my private token.
+// On error the message is shown under the title and null is returned.
+async function callGameRpc(name, extra) {
+  const code = sessionStorage.getItem("tod_room_code");
+  const token = sessionStorage.getItem("tod_player_token");
+
+  if (!code || !token) {
+    $("gameMsg").textContent = "Your room session is missing. Please rejoin.";
+    return null;
+  }
+
+  const { data, error } = await supabaseClient.rpc(
+    name,
+    Object.assign({ p_code: code, p_player_token: token }, extra || {})
+  );
+
+  if (error) {
+    console.error(name + " error:", error);
+    $("gameMsg").textContent = error.message;
+    return null;
+  }
+
+  return data || {};
+}
+
+function promptCardHtml(cp) {
+  return `
+    <div class="prompt">
+      <span class="tag">${esc(String(cp.prompt_type).toUpperCase())}</span>
+      <p style="font-size:19px">${esc(cp.prompt_text)}</p>
+      <p class="notice">Submitted by ${esc(cp.submitted_by)}</p>
+    </div>
+  `;
+}
+
+async function syncGameState() {
+  const code = sessionStorage.getItem("tod_room_code");
+  const token = sessionStorage.getItem("tod_player_token");
+
+  if (!code || !token || phase === "lobby" || syncing) return;
+
+  syncing = true;
+
+  try {
+    const { data, error } = await supabaseClient.rpc(
+      "tod_get_room_state",
+      {
+        p_code: code,
+        p_player_token: token
+      }
+    );
+
+    if (error) {
+      console.error("Game sync error:", error);
+      return;
+    }
+
+    if (!data) return;
+
+    // Do not let the background poll replace the roulette while its animation is running.
+    if (phase === "spinning") return;
+
+    players = (data.players || []).map(p => ({
+      id: p.id,
+      name: p.nickname,
+      host: p.is_host,
+      alive: p.is_alive
+    }));
+
+    round = data.round_number;
+    kind = data.selected_kind || "";
+    phase = data.game_phase || phase;
+    roomState = data;
+    drawPool = data.draw_pool || [];
+
+    selected = data.selected_player_id
+      ? players.find(p => p.id === data.selected_player_id) || null
+      : null;
+
+    if (data.status === "finished" || phase === "finished") {
+      finishGame();
+      return;
+    }
+
+    $("roundTag").textContent = "ROUND " + round;
+    renderGamePlayers();
+
+    if (phase === "draw") renderDrawPhase(data);
+    else if (phase === "choice") renderChoicePhase(data);
+    else if (phase === "submit") renderSubmitPhase(data);
+    else if (phase === "top3") await renderTop3Phase(data);
+    else if (phase === "challenge") renderChallengePhase(data);
+    else if (phase === "vote") renderVotePhase(data);
+    else if (phase === "result") renderResultPhase(data);
+  } finally {
+    syncing = false;
+  }
+}
+
+function renderDrawPhase(data) {
+  const amHost = !!data.you.is_host;
+
+  setView(
+    "draw|" + round + "|" + amHost,
+    "✦ The Elite Roulette",
+    "The lights are on... Who will be chosen?",
+    amHost
+      ? `<button class="primary" style="width:100%;padding:20px" onclick="drawPlayer()">✦ SPIN THE WHEEL ✦</button>`
+      : '<p class="notice">Waiting for the host to spin the wheel...</p>'
+  );
+}
+
+function renderChoicePhase(data) {
+  if (!selected) return;
+
+  const iAmSelected = selected.id === data.you.id;
+
+  setView(
+    "choice|" + round + "|" + selected.id,
+    "✦ " + selected.name + " ✦",
+    iAmSelected
+      ? "You're the chosen one. Truth or Dare?"
+      : selected.name + " is choosing Truth or Dare.",
+    iAmSelected
+      ? `
+        <div class="actions">
+          <button class="choice" onclick="chooseKind('Truth')">
+            <strong>☾</strong>TRUTH
+          </button>
+          <button class="choice" onclick="chooseKind('Dare')">
+            <strong>⚡</strong>DARE
+          </button>
+        </div>
+      `
+      : '<p class="notice">Waiting for the selected player...</p>'
+  );
+}
+
+function renderSubmitPhase(data) {
+  if (!selected) return;
+
+  const you = data.you;
+  const iAmSelected = selected.id === you.id;
+  const iAmManager = data.top3_manager_id === you.id;
+  // Only active players (not the selected one) write proposals.
+  const canPropose = !iAmSelected && you.is_alive;
+
+  let msg;
+  let html;
+
+  if (iAmSelected) {
+    msg = "Waiting for other players to submit their proposals...";
+    html = `
+      <p class="notice">
+        The other active players are preparing their proposals.
+        You will see the selected Top 3 when they are ready.
+      </p>
+    `;
+  } else if (canPropose) {
+    msg = iAmManager
+      ? "Submit your own proposal. You will choose the Top 3 once everyone has submitted."
+      : "Submit your own proposal. You can submit only once.";
+    html = `
+      <p class="notice">
+        Submit one ${kind === "Dare" ? "dare" : "truth question"}.
+      </p>
+      <label for="proposal">Your proposal</label>
+      <input id="proposal" maxlength="180"
+        placeholder="${kind === "Dare" ? "Write your dare..." : "Write your truth question..."}">
+      <button class="secondary"
+        style="width:100%;margin-top:10px"
+        onclick="submitProposal()">
+        Submit Proposal
+      </button>
+      <p id="proposalCount" class="notice">
+        Waiting for proposals...
+      </p>
+    `;
+  } else {
+    msg = iAmManager
+      ? "You will choose the Top 3 once everyone has submitted."
+      : "You are a spectator. You will be able to vote on the challenge.";
+    html = `
+      <p class="notice">
+        The active players are preparing their proposals.
+      </p>
+    `;
+  }
+
+  const changed = setView(
+    ["submit", round, selected.id, kind, canPropose, iAmManager].join("|"),
+    selected.name + " chooses: " + kind,
+    msg,
+    html
+  );
+
+  if (changed) {
+    proposalSent = false;
+    top3SelectedIds.clear();
+  }
+
+  if (!proposalSyncTimer) startProposalSync();
+}
+
+async function renderTop3Phase(data) {
+  if (!selected) return;
+
+  const iAmSelected = selected.id === data.you.id;
+  const attemptNo = data.attempt_number || 0;
+  const key = ["top3", round, selected.id, attemptNo, iAmSelected].join("|");
+
+  if (key === lastViewKey) return;
+
+  if (!iAmSelected) {
+    setView(
+      key,
+      "✦ TOP 3 SELECTED ✦",
+      selected.name + " is choosing a proposal (attempt " + (attemptNo + 1) + " of 3).",
+      '<p class="notice">Waiting for the selected player...</p>'
+    );
+    return;
+  }
+
+  const code = sessionStorage.getItem("tod_room_code");
+  const token = sessionStorage.getItem("tod_player_token");
+
+  const { data: top, error } = await supabaseClient.rpc(
+    "tod_get_top_three",
+    {
+      p_code: code,
+      p_player_token: token
+    }
+  );
+
+  if (error) {
+    console.error("Get Top 3 error:", error);
+    $("gameMsg").textContent = error.message;
+    return;
+  }
+
+  const prompts = top.prompts || [];
+  const left = prompts.length;
+
+  const subtitle = attemptNo === 0
+    ? "Three proposals made it to the final. Choose the one you want to take on."
+    : "That challenge was rejected by the vote. " + left + " proposals are left. Choose the next one.";
+
+  const html = `
+    <div class="challenge-pick-wrap">
+      <div class="challenge-pick-eyebrow">ELITE LEADERS · FINAL SELECTION</div>
+      <div class="challenge-pick-title">PICK YOUR <span>CHALLENGE</span></div>
+      <p class="challenge-pick-subtitle">${esc(subtitle)}</p>
+      <div class="challenge-pick-list">
+        ${prompts.map((p, i) => `
+          <button type="button" class="challenge-pick-card" onclick="pickPrompt('${esc(p.id)}')">
+            <div class="challenge-pick-index">0${i + 1}</div>
+            <div class="challenge-pick-content">
+              <div class="challenge-pick-label">FINALIST ${String(i + 1).padStart(2, '0')}</div>
+              <div class="challenge-pick-text">${esc(p.prompt_text)}</div>
+            </div>
+            <div class="challenge-pick-mark">✦</div>
+          </button>
+        `).join("")}
+      </div>
+      <div class="challenge-pick-footer"><span>ATTEMPT ${attemptNo + 1} / 3</span><span>ELITE EDITION</span></div>
+    </div>
+  `;
+
+  setView(key, "✦ YOUR TOP " + left + " ✦", "Click a proposal to take it on.", html);
+}
+
+function renderChallengePhase(data) {
+  const cp = data.current_prompt;
+  if (!cp || !selected) return;
+
+  const you = data.you;
+  const iAmSelected = selected.id === you.id;
+  const attemptNo = data.attempt_number || 0;
+
+  let extra;
+  if (iAmSelected) {
+    extra = `
+      <p class="notice">It's your turn. When you are done, press the button: all players will then vote.</p>
+      <button class="primary" style="width:100%" onclick="openVote()">I'm done — open the vote</button>
+    `;
+  } else if (you.is_host) {
+    extra = `
+      <p class="notice">${esc(selected.name)} is on it. Open the vote once they are done.</p>
+      <button class="secondary" style="width:100%" onclick="openVote()">Open the vote</button>
+    `;
+  } else {
+    extra = `<p class="notice">Waiting for ${esc(selected.name)} to complete the challenge...</p>`;
+  }
+
+  setView(
+    ["challenge", round, cp.id, iAmSelected, !!you.is_host].join("|"),
+    selected.name + ": " + cp.prompt_type,
+    "Attempt " + (attemptNo + 1) + " of 3",
+    promptCardHtml(cp) + extra
+  );
+}
+
+function renderVotePhase(data) {
+  const cp = data.current_prompt;
+  if (!cp || !selected) return;
+
+  const you = data.you;
+  const iAmSelected = selected.id === you.id;
+  const canVote = !iAmSelected;
+  const voted = !!data.i_voted;
+  const isCloser = data.vote_closer_id === you.id;
+
+  let msg;
+  if (iAmSelected) msg = "The players are voting on your performance...";
+  else if (voted) msg = "Your vote is registered. Waiting for the others...";
+  else if (!you.is_alive) msg = "Was the challenge completed? You can vote as a spectator.";
+  else msg = "Was the challenge completed? Vote now.";
+
+  let html = promptCardHtml(cp) + `<p id="voteCount" class="vote-count"></p>`;
+
+  if (canVote && !voted) {
+    html += `
+      <div class="actions">
+        <button class="secondary" onclick="castVote(true)">✓ Accepted</button>
+        <button class="danger" onclick="castVote(false)">✕ Rejected</button>
+      </div>
+    `;
+  }
+
+  if (isCloser) {
+    html += `
+      <button class="secondary" style="width:100%;margin-top:14px" onclick="closeVote()">Close the vote now</button>
+      <p class="notice">The majority decides. A tie counts as accepted.</p>
+    `;
+  } else {
+    html += `<p class="notice">The majority decides. A tie counts as accepted.</p>`;
+  }
+
+  setView(
+    ["vote", round, cp.id, canVote, voted, isCloser, !!you.is_alive].join("|"),
+    selected.name + ": " + cp.prompt_type,
+    msg,
+    html
+  );
+
+  const vc = $("voteCount");
+  if (vc) vc.textContent = (data.vote_count || 0) + " / " + (data.vote_total || 0) + " votes";
+}
+
+function renderResultPhase(data) {
+  if (!selected) return;
+
+  const you = data.you;
+  const result = data.last_result;
+  const yes = data.last_yes || 0;
+  const no = data.last_no || 0;
+  const aliveCount = players.filter(p => p.alive).length;
+  const gameOver = result !== "rejected" && aliveCount <= 3;
+
+  let title;
+  let msg;
+
+  if (result === "accepted") {
+    title = "✦ CHALLENGE ACCEPTED ✦";
+    msg = selected.name + " has qualified for the next round.";
+  } else if (result === "rejected") {
+    title = "Challenge Rejected";
+    msg = "The majority rejected it. " + selected.name + " must take on another proposal.";
+  } else {
+    title = "Player Eliminated";
+    msg = selected.name + " has been eliminated and is now a spectator.";
+  }
+
+  if (gameOver) {
+    msg += " Only " + aliveCount + " players remain: the game is over.";
+  }
+
+  const label = result === "rejected"
+    ? "Next proposal →"
+    : (gameOver ? "Final results →" : "Next round →");
+
+  const html = `
+    <div class="tally">
+      <span>✓ ${yes} accepted</span>
+      <span>✕ ${no} rejected</span>
+    </div>
+    ${you.is_host
+      ? `<button class="primary" style="width:100%;margin-top:16px" onclick="continueGame()">${label}</button>`
+      : '<p class="notice" style="text-align:center">Waiting for the host to continue...</p>'}
+  `;
+
+  setView(
+    ["result", round, result, data.attempt_number, !!you.is_host, aliveCount].join("|"),
+    title,
+    msg,
+    html
+  );
+}
+
+function finishGame() {
+  stopTimers();
+
+  const alive = players.filter(p => p.alive);
+
+  $("winners").textContent = alive.length
+    ? "Winners: " + alive.map(p => p.name).join(", ")
+    : "No winners.";
+
+  show("end");
+}
+
+function renderGamePlayers() {
+  const selId = selected ? selected.id : null;
+
+  $("gamePlayers").innerHTML = players.map(p => `
+    <div class="player">${esc(p.name)}${p.host ? ' <span class="tag">HOST</span>' : ""}
+      <small>${p.alive ? (p.id === selId ? "✦ Selected" : "Active") : "Eliminated · Spectator"}</small>
+    </div>
+  `).join("");
+
+  $("aliveCount").textContent =
+    players.filter(p => p.alive).length + " active players";
+}
+
+/* ------------------------------------------------------------------ */
+/* Roulette                                                            */
+/* ------------------------------------------------------------------ */
 
 function drawWheel(names) {
   const canvas = $("wheelCanvas");
@@ -819,11 +1020,16 @@ async function drawPlayer() {
     return;
   }
 
-  const alive = players.filter(p => p.alive);
-  const pool = round === 1 ? alive.filter(p => !p.host) : alive;
-  if (!pool.length) return;
+  // The wheel shows the same players the server can choose from.
+  const pool = players.filter(p => drawPool.includes(p.id));
+
+  if (!pool.length) {
+    $("gameMsg").textContent = "No players are available for the draw.";
+    return;
+  }
 
   phase = "spinning";
+  lastViewKey = "";
   $("gameTitle").textContent = "✦ ELITE ROULETTE ✦";
   $("gameMsg").textContent = "The wheel is spinning...";
 
@@ -848,15 +1054,14 @@ async function drawPlayer() {
   if (error || !data) {
     console.error("Draw error:", error);
     phase = "draw";
-    $("gameMsg").textContent = "Could not spin: " + (error?.message || "Unknown error");
-    $("turnArea").innerHTML = `
-      <button class="primary" style="width:100%" onclick="drawPlayer()">✦ SPIN AGAIN ✦</button>
-    `;
+    lastViewKey = "";
+    alert("Could not spin: " + (error?.message || "Unknown error"));
+    await syncGameState();
     return;
   }
 
   const winnerName = data.selected_nickname;
-  const winnerIndex = Math.max(0, pool.findIndex(p => p.name === winnerName));
+  const winnerIndex = Math.max(0, pool.findIndex(p => p.id === data.selected_player_id));
   const sliceDeg = 360 / pool.length;
   // Pointer is at the top. Rotate the winning segment to the pointer.
   const segmentCenter = winnerIndex * sliceDeg + sliceDeg / 2;
@@ -871,94 +1076,36 @@ async function drawPlayer() {
   if (result) result.textContent = "✦ " + winnerName + " ✦";
 
   phase = "choice";
+  lastViewKey = "";
   await new Promise(resolve => setTimeout(resolve, 900));
   await syncGameState();
 }
 
+/* ------------------------------------------------------------------ */
+/* Player actions                                                      */
+/* ------------------------------------------------------------------ */
 
 async function chooseKind(k) {
   if (phase !== "choice" || !selected) return;
 
-  const myId = sessionStorage.getItem("tod_player_id");
-
-  if (selected.id !== myId) {
+  if (selected.id !== myId()) {
     $("gameMsg").textContent = "Only the selected player can choose.";
     return;
   }
 
-  const code = sessionStorage.getItem("tod_room_code");
-  const token = sessionStorage.getItem("tod_player_token");
-
-  if (!code || !token) {
-    $("gameMsg").textContent = "Your room session is missing.";
-    return;
-  }
-
+  document.querySelectorAll(".choice").forEach(b => b.disabled = true);
   $("gameMsg").textContent = "Saving your choice...";
 
-  const { data, error } = await supabaseClient.rpc(
-    "tod_choose_kind",
-    {
-      p_code: code,
-      p_player_token: token,
-      p_kind: k
-    }
-  );
+  const res = await callGameRpc("tod_choose_kind", { p_kind: k });
 
-  if (error) {
-    console.error("Truth/Dare choice error:", error);
-    $("gameMsg").textContent = error.message;
+  if (!res) {
+    document.querySelectorAll(".choice").forEach(b => b.disabled = false);
     return;
   }
 
-  kind = data.selected_kind || k;
-  phase = "submit";
-  proposals = [];
-  chosen = [];
-
-  const eligible = players.filter(
-    p => p.alive && p.id !== selected.id
-  );
-
-  $("gameTitle").textContent = selected.name + " chooses: " + kind;
-
-  if (selected.id === myId) {
-    $("gameMsg").textContent =
-      "Waiting for other players to submit their proposals...";
-
-    $("turnArea").innerHTML = `
-      <p class="notice">
-        The other active players are preparing their proposals.
-        You will see the selected Top 3 when they are ready.
-      </p>
-    `;
-    startProposalSync();
-    return;
-  }
-
-  $("gameMsg").textContent =
-    "Write your own proposal. You can submit only once.";
-
-  $("turnArea").innerHTML = `
-    <p class="notice">
-      ${eligible.length} other active players must each submit one proposal.
-    </p>
-    <label for="proposal">Your proposal</label>
-    <input id="proposal" maxlength="180"
-      placeholder="${kind === "Dare" ? "Write your dare..." : "Write your truth question..."}">
-    <button class="secondary"
-      style="width:100%;margin-top:10px"
-      onclick="submitProposal()">
-      Submit Proposal
-    </button>
-    <p id="proposalCount" class="notice">
-      Waiting for proposals...
-    </p>
-  `;
-    startProposalSync();
+  lastViewKey = "";
+  await syncGameState();
 }
-
-
 
 async function submitProposal() {
   const value = $("proposal")?.value.trim();
@@ -981,7 +1128,7 @@ async function submitProposal() {
 
   if (button) button.disabled = true;
 
-  const { data, error } = await supabaseClient.rpc(
+  const { error } = await supabaseClient.rpc(
     "tod_submit_prompt",
     {
       p_code: code,
@@ -997,6 +1144,8 @@ async function submitProposal() {
     return;
   }
 
+  proposalSent = true;
+
   const input = $("proposal");
   if (input) input.disabled = true;
 
@@ -1009,9 +1158,10 @@ async function submitProposal() {
     $("proposalCount").textContent = "Proposal submitted successfully.";
   }
 }
+
 function updateTop3Selection(changedInput) {
   // Keep the selection in memory, not only in the DOM. Polling/re-rendering
-  // can rebuild the cards without losing the host's choices.
+  // can rebuild the cards without losing the manager's choices.
   if (changedInput) {
     const id = String(changedInput.value);
     if (changedInput.checked) {
@@ -1047,7 +1197,7 @@ async function selectTopThree() {
   const code = sessionStorage.getItem("tod_room_code");
   const token = sessionStorage.getItem("tod_player_token");
 
-  const { data, error } = await supabaseClient.rpc(
+  const { error } = await supabaseClient.rpc(
     "tod_select_top_three",
     {
       p_code: code,
@@ -1066,8 +1216,10 @@ async function selectTopThree() {
   $("gameMsg").textContent =
     "Top 3 successfully selected!";
 
+  lastViewKey = "";
   await syncGameState();
 }
+
 async function syncProposalProgress() {
   const code = sessionStorage.getItem("tod_room_code");
   const token = sessionStorage.getItem("tod_player_token");
@@ -1087,95 +1239,83 @@ async function syncProposalProgress() {
     return;
   }
 
-  if (!data) return;
-const counter = $("proposalCount");
+  if (!data || phase !== "submit") return;
 
-if (counter) {
-  if (data.submitted >= data.total && data.total > 0) {
-    counter.textContent =
-      "All proposals received! Submission round complete.";
+  const complete = data.total > 0 && data.submitted >= data.total;
 
-    $("gameMsg").textContent =
-      "All players have submitted. The submission round is complete.";
-  } else {
-    counter.textContent =
-      `${data.submitted} / ${data.total} proposals submitted`;
-  }
-}
-  if (data.is_selected) {
-    $("gameMsg").textContent =
-      "Waiting for other players to submit their proposals...";
-
-    $("turnArea").innerHTML = `
-      <p class="notice">
-        The other active players are preparing their proposals.
-        You will see the selected Top 3 when they are ready.
-      </p>
-    `;
-    return;
+  const counter = $("proposalCount");
+  if (counter) {
+    counter.textContent = complete
+      ? "All proposals received! Submission round complete."
+      : (proposalSent ? "✓ Proposal submitted — " : "") +
+        data.submitted + " / " + data.total + " proposals submitted";
   }
 
- if (data.is_host && Array.isArray(data.prompts)) {
-  const existing = $("hostPromptList");
-
-  if (!existing) {
-    const list = document.createElement("div");
-    list.id = "hostPromptList";
-    list.className = "notice";
-    $("turnArea").appendChild(list);
+  if (complete) {
+    $("gameMsg").textContent = data.is_manager
+      ? "All proposals received. Choose the Top 3 below."
+      : "All players have submitted. Waiting for the Top 3 selection...";
   }
 
-  const promptList = $("hostPromptList");
-
-  if (data.submitted >= data.total && data.total > 0) {
-    // Build the checkboxes only once. Rebuilding them every poll erased selections.
-    if (promptList.dataset.ready !== "true") {
-      promptList.innerHTML = `
-        <div class="top3-shell">
-          <div class="top3-heading">
-            <div>
-              <div class="top3-kicker">ELITE LEADERS · CHALLENGE DRAFTS</div>
-              <div class="top3-title">Build the Top 3</div>
-            </div>
-            <div class="top3-count" id="top3Count">0 / 3 SELECTED</div>
-          </div>
-          <p class="top3-help">Review every submission and choose exactly three challenges for the selected player.</p>
-          <div class="top3-list">
-            ${data.prompts.map((p, i) => `
-              <label class="top3-option">
-                <input type="checkbox" class="topThreeChoice"
-                  value="${esc(p.id)}" ${top3SelectedIds.has(String(p.id)) ? "checked" : ""}
-                  onchange="updateTop3Selection(this)">
-                <span class="top3-option-copy">
-                  <span class="top3-option-meta">
-                    <span class="top3-option-number">PROPOSAL ${String(i + 1).padStart(2, '0')}</span>
-                    <span class="top3-selected-tag">SELECTED</span>
-                  </span>
-                  <span class="top3-option-text">${esc(p.prompt_text)}</span>
-                </span>
-              </label>
-            `).join("")}
-          </div>
-          <button id="confirmTop3Btn" class="top3-confirm" onclick="selectTopThree()" disabled>
-            CONFIRM TOP 3 <span aria-hidden="true">→</span>
-          </button>
-          <p class="top3-footnote">Select 3 proposals to unlock confirmation.</p>
-        </div>
-      `;
-      promptList.dataset.ready = "true";
-      updateTop3Selection();
+  // Only the player who manages the Top 3 sees all the proposals.
+  if (data.is_manager && Array.isArray(data.prompts)) {
+    if (!$("hostPromptList")) {
+      const list = document.createElement("div");
+      list.id = "hostPromptList";
+      list.className = "notice";
+      $("turnArea").appendChild(list);
     }
-  } else {
-    promptList.dataset.ready = "false";
-    top3SelectedIds.clear();
-    promptList.innerHTML = `
-      <p>${data.submitted} / ${data.total} proposals submitted</p>
-      <p>Waiting for all players...</p>
-    `;
+
+    const promptList = $("hostPromptList");
+
+    if (complete) {
+      // Build the checkboxes only once. Rebuilding them every poll erased selections.
+      if (promptList.dataset.ready !== "true") {
+        promptList.innerHTML = `
+          <div class="top3-shell">
+            <div class="top3-heading">
+              <div>
+                <div class="top3-kicker">ELITE LEADERS · CHALLENGE DRAFTS</div>
+                <div class="top3-title">Build the Top 3</div>
+              </div>
+              <div class="top3-count" id="top3Count">0 / 3 SELECTED</div>
+            </div>
+            <p class="top3-help">Review every submission and choose exactly three challenges for the selected player.</p>
+            <div class="top3-list">
+              ${data.prompts.map((p, i) => `
+                <label class="top3-option">
+                  <input type="checkbox" class="topThreeChoice"
+                    value="${esc(p.id)}" ${top3SelectedIds.has(String(p.id)) ? "checked" : ""}
+                    onchange="updateTop3Selection(this)">
+                  <span class="top3-option-copy">
+                    <span class="top3-option-meta">
+                      <span class="top3-option-number">PROPOSAL ${String(i + 1).padStart(2, '0')}</span>
+                      <span class="top3-selected-tag">SELECTED</span>
+                    </span>
+                    <span class="top3-option-text">${esc(p.prompt_text)}</span>
+                  </span>
+                </label>
+              `).join("")}
+            </div>
+            <button id="confirmTop3Btn" class="top3-confirm" onclick="selectTopThree()" disabled>
+              CONFIRM TOP 3 <span aria-hidden="true">→</span>
+            </button>
+            <p class="top3-footnote">Select 3 proposals to unlock confirmation.</p>
+          </div>
+        `;
+        promptList.dataset.ready = "true";
+        updateTop3Selection();
+      }
+    } else {
+      promptList.dataset.ready = "false";
+      top3SelectedIds.clear();
+      promptList.innerHTML = `
+        <p>${data.submitted} / ${data.total} proposals submitted</p>
+        <p>Waiting for all players...</p>
+      `;
+    }
   }
 }
-}
-let proposalSyncTimer = null;
 
 function startProposalSync() {
   if (proposalSyncTimer) clearInterval(proposalSyncTimer);
@@ -1192,195 +1332,90 @@ function startProposalSync() {
   }, 1500);
 }
 
-function updateProposalProgress() {
-  const eligible = players.filter(
-    p => p.alive && p.name !== selected.name
-  );
+// The selected player clicks one of the remaining Top 3 cards.
+async function pickPrompt(id) {
+  const cards = document.querySelectorAll(".challenge-pick-card");
+  cards.forEach(b => b.disabled = true);
 
-  const count = proposals.length;
-  const complete = count === eligible.length;
-  const counter = $("proposalCount");
-  if (counter) {
-    counter.textContent = `${count} / ${eligible.length} proposals submitted`;
-  }
+  const res = await callGameRpc("tod_pick_prompt", { p_prompt_id: id });
 
-  const btn = $("finishProposalsBtn");
-  if (btn) btn.disabled = !complete || count < 3;
-}
-
-function finishProposals() {
-  const eligible = players.filter(
-    p => p.alive && p.name !== selected.name
-  );
-
-  if (proposals.length !== eligible.length) {
-    alert("Every eligible player must submit exactly one proposal.");
-    return;
-  }
-  if (proposals.length < 3) {
-    alert("At least 3 proposals are required for the Top 3.");
+  if (!res) {
+    cards.forEach(b => b.disabled = false);
     return;
   }
 
-  phase = "top3";
-  chosen = [];
-
-  $("gameTitle").textContent = "Top 3 Selection";
-
-  const chooser = selected.host
-    ? previousWinner
-    : players.find(p => p.host)?.name;
-
-  if (selected.host && !chooser) {
-    alert("No previously successful player is available to manage the selection.");
-    return;
-  }
-  $("gameMsg").textContent = selected.host
-    ? "The previously successful player manages only the Top 3 selection."
-    : "The host selects the three best proposals.";
-
-  $("turnArea").innerHTML = `
-    <p class="notice">Selection managed by: ${esc(chooser || "Host")}</p>
-    <div id="proposalCards" class="cards"></div>
-    <p id="topCount" class="notice">0 / 3 selected</p>
-    <button class="primary" style="width:100%" onclick="confirmTop3()">Confirm Top 3</button>
-  `;
-  $("proposalCards").innerHTML = proposals.map((p,i) => `
-    <div class="prompt">
-      <p>${esc(p.text)}</p>
-      <small class="notice">Submitted by ${esc(p.by)}</small>
-      <button class="secondary" onclick="toggleTop(${i},this)">＋ Add to Top 3</button>
-    </div>
-  `).join("");
+  lastViewKey = "";
+  await syncGameState();
 }
 
-function toggleTop(i, btn) {
-  if (chosen.includes(i)) {
-    chosen = chosen.filter(x => x !== i);
-    btn.textContent = "＋ Add to Top 3";
-  } else if (chosen.length < 3) {
-    chosen.push(i);
-    btn.textContent = "✓ Selected";
-  } else {
-    alert("The Top 3 is already full.");
+// The challenge is done: open the vote.
+async function openVote() {
+  document.querySelectorAll("#turnArea button").forEach(b => b.disabled = true);
+
+  const res = await callGameRpc("tod_open_vote");
+
+  if (!res) {
+    document.querySelectorAll("#turnArea button").forEach(b => b.disabled = false);
     return;
   }
 
-  $("topCount").textContent = chosen.length + " / 3 selected";
+  lastViewKey = "";
+  await syncGameState();
 }
 
-function confirmTop3() {
-  if (chosen.length !== 3) {
-    alert("Select exactly 3 proposals.");
-    return;
-  }
-  chosen = chosen.map(i => proposals[i]);
-  attempt = 0;
-  showChallenge();
-}
+async function castVote(accepted) {
+  document.querySelectorAll("#turnArea .actions button").forEach(b => b.disabled = true);
 
-function showChallenge() {
-  phase = "challenge";
-  const p = chosen[attempt];
+  const res = await callGameRpc("tod_cast_vote", { p_accepted: accepted });
 
-  $("gameTitle").textContent = selected.name + ": " + kind;
-  $("gameMsg").textContent = "Proposal " + (attempt+1) + " of 3";
-  $("turnArea").innerHTML = `
-    <div class="prompt">
-      <span class="tag">${kind.toUpperCase()}</span>
-      <p style="font-size:19px">${esc(p.text)}</p>
-      <p class="notice">Submitted by ${esc(p.by)}</p>
-    </div>
-    <p class="notice">After the challenge, all active players, including the host, vote. The majority decides.</p>
-    <button class="primary" style="width:100%" onclick="openVote()">Open Voting</button>
-  `;
-}
-
-function openVote() {
-  phase = "vote";
-  votes = {};
-  const voters = players.filter(p => p.alive);
-
-  $("gameMsg").textContent = "Each active player must vote once.";
-  $("turnArea").innerHTML = `
-    <div id="voteCards"></div>
-    <p id="voteCount" class="notice">0 / ${voters.length} votes</p>
-    <button class="primary" style="width:100%" onclick="countVotes()">Count Votes</button>
-  `;
-  $("voteCards").innerHTML = voters.map((p,i) => `
-    <div class="prompt">
-      <div class="row">
-        <strong>${esc(p.name)}</strong>
-        ${p.host ? '<span class="tag">HOST</span>' : ""}
-      </div>
-      <div class="actions">
-        <button class="secondary" onclick="castVote(${i},true,this)">✓ Accepted</button>
-        <button class="danger" onclick="castVote(${i},false,this)">✕ Rejected</button>
-      </div>
-    </div>
-  `).join("");
-}
-
-function castVote(i, yes, btn) {
-  if (Object.prototype.hasOwnProperty.call(votes,i)) return;
-
-  votes[i] = yes;
-  btn.parentElement.querySelectorAll("button").forEach(b => b.disabled = true);
-
-  $("voteCount").textContent =
-    Object.keys(votes).length + " / " + players.filter(p => p.alive).length + " votes";
-}
-
-function countVotes() {
-  const voters = players.filter(p => p.alive);
-  if (Object.keys(votes).length < voters.length) {
-    alert("Wait until every active player has voted.");
+  if (!res) {
+    document.querySelectorAll("#turnArea .actions button").forEach(b => b.disabled = false);
     return;
   }
 
-  const yes = Object.values(votes).filter(Boolean).length;
-
-  if (yes > voters.length/2) {
-    previousWinner = selected.name;
-    $("gameTitle").textContent = "✦ CHALLENGE ACCEPTED ✦";
-    $("gameMsg").textContent = selected.name + " has qualified for the next round.";
-    $("turnArea").innerHTML =
-      '<button class="primary" style="width:100%" onclick="nextRound()">Next Round →</button>';
-  } else {
-    attempt++;
-    if (attempt < 3) {
-      $("gameTitle").textContent = "Challenge Rejected";
-      $("gameMsg").textContent = "The majority rejected it. Try the next proposal.";
-      $("turnArea").innerHTML =
-        '<button class="primary" style="width:100%" onclick="showChallenge()">Next Proposal →</button>';
-    } else {
-      selected.alive = false;
-      $("gameTitle").textContent = "Player Eliminated";
-      $("gameMsg").textContent = selected.name + " has been eliminated and is now a spectator.";
-      $("turnArea").innerHTML =
-        '<button class="primary" style="width:100%" onclick="nextRound()">Continue Game →</button>';
-    }
-  }
-  renderGamePlayers();
+  lastViewKey = "";
+  await syncGameState();
 }
 
-function renderGamePlayers() {
-  $("gamePlayers").innerHTML = players.map(p =>
-    `<div class="player">${esc(p.name)}${p.alive ? "<small>Active</small>" : "<small>Eliminated · Spectator</small>"}</div>`
-  ).join("");
+async function closeVote() {
+  const res = await callGameRpc("tod_close_vote");
+  if (!res) return;
 
-  $("aliveCount").textContent =
-    players.filter(p => p.alive).length + " active players";
+  lastViewKey = "";
+  await syncGameState();
+}
+
+// Host only: go to the next proposal, the next round, or the final screen.
+async function continueGame() {
+  document.querySelectorAll("#turnArea button").forEach(b => b.disabled = true);
+
+  const res = await callGameRpc("tod_continue");
+
+  if (!res) {
+    document.querySelectorAll("#turnArea button").forEach(b => b.disabled = false);
+    return;
+  }
+
+  lastViewKey = "";
+  await syncGameState();
 }
 
 function goHome() {
+  stopTimers();
+  SESSION_KEYS.forEach(k => sessionStorage.removeItem(k));
+
   room = null;
   me = null;
   isHost = false;
   players = [];
   round = 0;
   selected = null;
-  previousWinner = null;
+  kind = "";
+  roomState = null;
+  drawPool = [];
+  lastViewKey = "";
+  proposalSent = false;
+  top3SelectedIds.clear();
   phase = "lobby";
   $("nickname").value = "";
   $("joinCode").value = "";
@@ -1391,4 +1426,3 @@ function goHome() {
 </script>
 </body>
 </html>
-
