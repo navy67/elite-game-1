@@ -232,6 +232,7 @@ let drawPool = [];         // ids of the players the wheel can land on
 let lastViewKey = "";      // used to re-render the screen only when something really changed
 let syncing = false;       // prevents two polls from overlapping
 let proposalSent = false;  // true once I have submitted my proposal this round
+let spinPending = false;   // host pressed the spin button, waiting for the server
 
 let lobbySyncInterval = null;
 let gameSyncTimer = null;
@@ -603,9 +604,6 @@ async function syncGameState() {
 
     if (!data) return;
 
-    // Do not let the background poll replace the roulette while its animation is running.
-    if (phase === "spinning") return;
-
     players = (data.players || []).map(p => ({
       id: p.id,
       name: p.nickname,
@@ -632,6 +630,7 @@ async function syncGameState() {
     renderGamePlayers();
 
     if (phase === "draw") renderDrawPhase(data);
+    else if (phase === "spinning") renderSpinPhase(data);
     else if (phase === "choice") renderChoicePhase(data);
     else if (phase === "submit") renderSubmitPhase(data);
     else if (phase === "top3") await renderTop3Phase(data);
@@ -643,17 +642,98 @@ async function syncGameState() {
   }
 }
 
-function renderDrawPhase(data) {
-  const amHost = !!data.you.is_host;
+// Everybody sees the same wheel: same players, same order (order of arrival).
+function wheelPlayers() {
+  return players.filter(p => drawPool.includes(p.id));
+}
 
-  setView(
-    "draw|" + round + "|" + amHost,
+function wheelHtml(label) {
+  return `
+    <div class="wheel-wrap">
+      <div class="wheel-pointer">▼</div>
+      <div class="wheel" id="rouletteWheel">
+        <canvas id="wheelCanvas"></canvas>
+        <div class="wheel-center">ELITE</div>
+      </div>
+      <div class="wheel-result" id="wheelResult">${label}</div>
+    </div>
+  `;
+}
+
+// The wheel is visible to every player before it starts.
+// Only the host has the button that starts it.
+function renderDrawPhase(data) {
+  // The host just pressed the button: do not redraw until the spin starts.
+  if (spinPending) return;
+
+  const amHost = !!data.you.is_host;
+  const pool = wheelPlayers();
+
+  const changed = setView(
+    "draw|" + round + "|" + amHost + "|" + pool.map(p => p.id).join(","),
     "✦ The Elite Roulette",
     "The lights are on... Who will be chosen?",
-    amHost
-      ? `<button class="primary" style="width:100%;padding:20px" onclick="drawPlayer()">✦ SPIN THE WHEEL ✦</button>`
-      : '<p class="notice">Waiting for the host to spin the wheel...</p>'
+    wheelHtml("") + (
+      amHost
+        ? `<button id="spinBtn" class="primary" style="width:100%;padding:20px" onclick="drawPlayer()">✦ SPIN THE WHEEL ✦</button>`
+        : '<p class="notice" style="text-align:center">Waiting for the host to spin the wheel...</p>'
+    )
   );
+
+  if (changed) drawWheel(pool.map(p => p.name));
+}
+
+// The server picks the player and starts the clock. Every screen animates the
+// same spin, and a screen that joins late starts with the time that is left.
+function renderSpinPhase(data) {
+  spinPending = false;
+  if (!selected) return;
+
+  const pool = wheelPlayers();
+  const key = ["spin", round, selected.id].join("|");
+
+  const changed = setView(
+    key,
+    "✦ ELITE ROULETTE ✦",
+    "The wheel is spinning...",
+    wheelHtml("GOOD LUCK")
+  );
+
+  if (!changed) return;
+
+  drawWheel(pool.map(p => p.name));
+
+  const total = data.spin_duration_ms || 14000;
+  const elapsed = Math.min(data.spin_elapsed_ms || 0, total);
+  const remaining = total - elapsed;
+
+  const winnerName = selected.name;
+  const winnerIndex = Math.max(0, pool.findIndex(p => p.id === selected.id));
+  const sliceDeg = 360 / Math.max(1, pool.length);
+  // Pointer is at the top. Rotate the winning segment to the pointer.
+  const segmentCenter = winnerIndex * sliceDeg + sliceDeg / 2;
+  const finalRotation = 360 * 9 + (360 - segmentCenter);
+
+  const wheel = $("rouletteWheel");
+  const result = $("wheelResult");
+  if (!wheel) return;
+
+  if (remaining <= 300) {
+    // The spin is already over: show the final position directly.
+    wheel.style.transition = "none";
+    wheel.style.transform = `rotate(${finalRotation}deg)`;
+    if (result) result.textContent = "✦ " + winnerName + " ✦";
+    return;
+  }
+
+  void wheel.offsetWidth; // make sure the starting position is painted first
+  wheel.style.transition = `transform ${remaining}ms cubic-bezier(.12,.6,.1,1)`;
+  wheel.style.transform = `rotate(${finalRotation}deg)`;
+
+  setTimeout(() => {
+    const r = $("wheelResult");
+    if (r && lastViewKey === key) r.textContent = "✦ " + winnerName + " ✦";
+  }, remaining);
 }
 
 function renderChoicePhase(data) {
@@ -956,7 +1036,8 @@ function finishGame() {
 }
 
 function renderGamePlayers() {
-  const selId = selected ? selected.id : null;
+  // The chosen player stays secret until the wheel stops.
+  const selId = selected && phase !== "spinning" ? selected.id : null;
 
   $("gamePlayers").innerHTML = players.map(p => `
     <div class="player">${esc(p.name)}${p.host ? ' <span class="tag">HOST</span>' : ""}
