@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -53,6 +54,19 @@ input:focus,select:focus{border-color:var(--purple)}
 footer{text-align:center;padding:20px;color:#887a9a;font-size:12px}
 hr{border:0;border-top:1px solid #ffffff14;margin:18px 0}
 @media(max-width:500px){header{padding:14px}.discord{font-size:11px}main{padding:20px 13px}.panel{padding:17px}.actions{grid-template-columns:1fr}}
+
+.wheel-wrap{display:flex;flex-direction:column;align-items:center;gap:16px;padding:18px 0}
+.wheel-pointer{font-size:30px;line-height:1;color:#ffd7ff;filter:drop-shadow(0 0 8px #d16dff)}
+.wheel{width:min( min(76vw, 390px), 390px);aspect-ratio:1;border-radius:50%;position:relative;
+  border:7px solid #d5a6ff;box-shadow:0 0 0 5px #2b1740,0 0 35px #a34aff66;
+  overflow:hidden;transition:transform 6s cubic-bezier(.10,.78,.12,1);background:#241535}
+.wheel canvas{display:block;width:100%;height:100%}
+.wheel-center{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:24%;aspect-ratio:1;border-radius:50%;display:grid;place-items:center;
+  background:linear-gradient(145deg,#f0c7ff,#8b42f5);border:5px solid #fff;
+  color:#241033;font-weight:1000;font-size:clamp(10px,2.5vw,17px);box-shadow:0 0 20px #0008}
+.wheel-result{font-size:22px;font-weight:900;color:#e3c1ff;text-align:center;min-height:32px}
+
 </style>
 </head>
 <body>
@@ -105,8 +119,7 @@ hr{border:0;border-top:1px solid #ffffff14;margin:18px 0}
       <span id="playerCount" class="status"></span>
     </div>
     <div id="lobbyPlayers" class="players"></div>
-    <p class="notice">At least 4 players are required. This is a local demo: add test players on this device.</p>
-    <button id="addDemo" class="secondary" onclick="addDemoPlayer()">＋ Add Test Player</button>
+    <p class="notice">At least 4 real players must join using the room code before the host can start.</p>
     <button id="startBtn" class="primary" style="width:100%;margin-top:12px" onclick="startGame()">Start Game</button>
     <button class="secondary" style="width:100%;margin-top:10px" onclick="goHome()">Leave Room</button>
     <p id="lobbyMsg" class="notice" aria-live="polite"></p>
@@ -298,20 +311,6 @@ async function joinRoom() {
   $("lobbyMsg").textContent =
     "You joined the room! Waiting for the host.";
 }
-function addDemoPlayer() {
-  if (phase !== "lobby") return;
-
-  const n = prompt("Enter the test player's nickname:");
-  if (!n || !n.trim()) return;
-  const name = n.trim().slice(0,24);
-  if (players.some(p => p.name.toLowerCase() === name.toLowerCase())) {
-    alert("This nickname is already being used.");
-    return;
-  }
-
-  players.push({name, host:false, alive:true});
-  renderLobby();
-}
 
 function renderLobby() {
   $("roomCode").textContent = room;
@@ -398,8 +397,8 @@ function startLobbySync() {
     }
   }, 2000);
 }
-
 async function syncGameState() {
+  
   const code = sessionStorage.getItem("tod_room_code");
   const token = sessionStorage.getItem("tod_player_token");
 
@@ -430,6 +429,9 @@ async function syncGameState() {
   round = data.round_number;
   kind = data.selected_kind || "";
   phase = data.game_phase || phase;
+  console.log("GAME PHASE:", data.game_phase);
+console.log("SELECTED KIND:", data.selected_kind);
+console.log("SELECTED PLAYER:", data.selected_player_id);
 
   selected = data.selected_player_id
     ? players.find(p => p.id === data.selected_player_id) || null
@@ -439,84 +441,141 @@ async function syncGameState() {
 
   if (phase === "draw") {
     $("roundTag").textContent = "ROUND " + round;
-    $("gameTitle").textContent = "✦ The Random Draw";
-    $("gameMsg").textContent = "The lights are on... Who will be chosen?";
+    $("aliveCount").textContent =
+      players.filter(p => p.alive).length + " active players";
+    $("gameTitle").textContent = "✦ The Elite Roulette";
+    $("gameMsg").textContent =
+      "The lights are on... Who will be chosen?";
 
-    $("turnArea").innerHTML = isHost
-      ? `<button class="primary" style="width:100%;padding:20px" onclick="drawPlayer()">✦ SPIN THE WHEEL ✦</button>`
-      : '<p class="notice">Waiting for the host to spin the wheel...</p>';
+    if (isHost) {
+      $("turnArea").innerHTML = `
+        <button class="primary"
+          style="width:100%;padding:20px"
+          onclick="drawPlayer()">
+          ✦ SPIN THE WHEEL ✦
+        </button>
+      `;
+    } else {
+      $("turnArea").innerHTML =
+        '<p class="notice">Waiting for the host to spin the wheel...</p>';
+    }
   }
 
   if (phase === "choice" && selected) {
     $("gameTitle").textContent = "✦ " + selected.name + " ✦";
+    $("gameMsg").textContent =
+      selected.id === sessionStorage.getItem("tod_player_id")
+        ? "You're the chosen one. Truth or Dare?"
+        : selected.name + " is choosing Truth or Dare.";
 
     if (selected.id === sessionStorage.getItem("tod_player_id")) {
-      $("gameMsg").textContent = "You're the chosen one. Truth or Dare?";
       $("turnArea").innerHTML = `
         <div class="actions">
-          <button class="choice" onclick="chooseKind('Truth')"><strong>☾</strong>TRUTH</button>
-          <button class="choice" onclick="chooseKind('Dare')"><strong>⚡</strong>DARE</button>
-        </div>`;
+          <button class="choice" onclick="chooseKind('Truth')">
+            <strong>☾</strong>TRUTH
+          </button>
+          <button class="choice" onclick="chooseKind('Dare')">
+            <strong>⚡</strong>DARE
+          </button>
+        </div>
+      `;
     } else {
-      $("gameMsg").textContent = selected.name + " is choosing Truth or Dare.";
-      $("turnArea").innerHTML = '<p class="notice">Waiting for the selected player...</p>';
+      $("turnArea").innerHTML =
+        '<p class="notice">Waiting for the selected player...</p>';
     }
   }
-
   if (phase === "submit" && selected) {
     const myId = sessionStorage.getItem("tod_player_id");
 
-    $("gameTitle").textContent = selected.name + " chooses: " + kind;
+    $("roundTag").textContent = "ROUND " + round;
+    $("aliveCount").textContent =
+      players.filter(p => p.alive).length + " active players";
+
+    $("gameTitle").textContent =
+      selected.name + " chooses: " + kind;
 
     if (selected.id === myId) {
-      $("gameMsg").textContent = "Waiting for other players to submit their proposals...";
-      $("turnArea").innerHTML = '<p class="notice">The other active players are preparing their proposals. You will see the selected Top 3 when they are ready.</p>';
-    } else if (!$("proposal")) {
-      $("gameMsg").textContent = "Submit your own proposal. You can submit only once.";
+      $("gameMsg").textContent =
+        "Waiting for other players to submit their proposals...";
+
       $("turnArea").innerHTML = `
-        <p class="notice">Submit one ${kind === "Dare" ? "dare" : "truth question"}.</p>
-        <label for="proposal">Your proposal</label>
-        <input id="proposal" maxlength="180" placeholder="Write your proposal...">
-        <button class="secondary" style="width:100%;margin-top:10px" onclick="submitProposal()">Submit Proposal</button>
-        <p id="proposalCount" class="notice">Waiting for proposals...</p>`;
+        <p class="notice">
+          The other active players are preparing their proposals.
+          You will see the selected Top 3 when they are ready.
+        </p>
+      `;
+    } else {
+      const inputExists = $("proposal");
+
+      if (!inputExists) {
+        $("gameMsg").textContent =
+          "Submit your own proposal. You can submit only once.";
+
+        $("turnArea").innerHTML = `
+          <p class="notice">
+            Submit one ${kind === "Dare" ? "dare" : "truth question"}.
+          </p>
+          <label for="proposal">Your proposal</label>
+          <input id="proposal" maxlength="180"
+            placeholder="${kind === "Dare" ? "Write your dare..." : "Write your truth question..."}">
+          <button class="secondary"
+            style="width:100%;margin-top:10px"
+            onclick="submitProposal()">
+            Submit Proposal
+          </button>
+          <p id="proposalCount" class="notice">
+            Waiting for proposals...
+          </p>
+        `;
+      }
     }
 
     startProposalSync();
   }
 
-  if (phase === "top3" && selected) {
-    const myId = sessionStorage.getItem("tod_player_id");
+ if (phase === "top3" && selected) {
+  const myId = sessionStorage.getItem("tod_player_id");
 
-    if (selected.id === myId) {
-      const { data, error } = await supabaseClient.rpc(
-        "tod_get_top_three",
-        {
-          p_code: code,
-          p_player_token: token
-        }
-      );
+  if (selected.id === myId) {
+    const code = sessionStorage.getItem("tod_room_code");
+    const token = sessionStorage.getItem("tod_player_token");
 
-      if (error) {
-        console.error("Get Top 3 error:", error);
-        $("gameMsg").textContent = error.message;
-        return;
+    $("gameTitle").textContent = "✦ YOUR TOP 3 ✦";
+    $("gameMsg").textContent =
+      "Choose your challenge from these three proposals.";
+
+    const { data, error } = await supabaseClient.rpc(
+      "tod_get_top_three",
+      {
+        p_code: code,
+        p_player_token: token
       }
+    );
 
-      $("gameTitle").textContent = "✦ YOUR TOP 3 ✦";
-      $("gameMsg").textContent = "Choose your challenge from these three proposals.";
-      $("turnArea").innerHTML = (data.prompts || []).map((p, i) => `
+    if (error) {
+      console.error("Get Top 3 error:", error);
+      $("gameMsg").textContent = error.message;
+      return;
+    }
+
+    $("turnArea").innerHTML = (data.prompts || [])
+      .map((p, i) => `
         <div class="notice">
           <strong>OPTION ${i + 1}</strong>
           <p>${esc(p.prompt_text)}</p>
-        </div>`).join("");
-    } else {
-      $("gameTitle").textContent = "✦ TOP 3 SELECTED ✦";
-      $("gameMsg").textContent = "The selected player is choosing a proposal.";
-      $("turnArea").innerHTML = '<p class="notice">Waiting for the selected player...</p>';
-    }
-  }
-}
+        </div>
+      `)
+      .join("");
+  } else {
+    $("gameTitle").textContent = "✦ TOP 3 SELECTED ✦";
+    $("gameMsg").textContent =
+      "The selected player is choosing a proposal.";
 
+    $("turnArea").innerHTML =
+      '<p class="notice">Waiting for the selected player...</p>';
+  }
+} 
+}
 let gameSyncTimer = null;
 
 function startGameSync() {
@@ -593,7 +652,7 @@ async function startGame() {
   $("roundTag").textContent = "ROUND " + round;
   $("aliveCount").textContent =
     players.filter(p => p.alive).length + " active players";
-  $("gameTitle").textContent = "✦ The Random Draw";
+  $("gameTitle").textContent = "✦ The Elite Roulette";
   $("gameMsg").textContent =
     "The lights are on... Who will be chosen?";
 
@@ -635,7 +694,7 @@ function nextRound() {
   show("game");
   $("roundTag").textContent = "ROUND " + round;
   $("aliveCount").textContent = alive.length + " active players";
-  $("gameTitle").textContent = "✦ The Random Draw";
+  $("gameTitle").textContent = "✦ The Elite Roulette";
   $("gameMsg").textContent = "The lights are on... Who will be chosen?";
 
   // The host cannot be selected in the first round.
@@ -652,6 +711,44 @@ function nextRound() {
 }
 
 
+function drawWheel(names) {
+  const canvas = $("wheelCanvas");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const size = 700;
+  canvas.width = size;
+  canvas.height = size;
+  const cx = size / 2, cy = size / 2, radius = size / 2;
+  const colors = ["#6d35a8","#38205c","#a34ee8","#54277e","#8c43bd","#29183f"];
+  const slice = (Math.PI * 2) / names.length;
+
+  names.forEach((name, i) => {
+    const a0 = -Math.PI / 2 + i * slice;
+    const a1 = a0 + slice;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, radius, a0, a1);
+    ctx.closePath();
+    ctx.fillStyle = colors[i % colors.length];
+    ctx.fill();
+    ctx.strokeStyle = "#e4c5ff";
+    ctx.lineWidth = 4;
+    ctx.stroke();
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(a0 + slice / 2);
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 27px Arial";
+    let label = String(name);
+    if (label.length > 18) label = label.slice(0, 16) + "…";
+    ctx.fillText(label, radius - 28, 0);
+    ctx.restore();
+  });
+}
+
 async function drawPlayer() {
   if (phase !== "draw") return;
 
@@ -664,85 +761,60 @@ async function drawPlayer() {
   }
 
   const alive = players.filter(p => p.alive);
-  const pool = round === 1
-    ? alive.filter(p => !p.host)
-    : alive;
-
+  const pool = round === 1 ? alive.filter(p => !p.host) : alive;
   if (!pool.length) return;
 
   phase = "spinning";
-  $("gameTitle").textContent = "✦ ELITE SPIN ✦";
-  $("gameMsg").textContent = "The names are rolling...";
+  $("gameTitle").textContent = "✦ ELITE ROULETTE ✦";
+  $("gameMsg").textContent = "The wheel is spinning...";
 
   $("turnArea").innerHTML = `
-    <div id="slotMachine" style="
-      overflow:hidden;
-      border:2px solid #9b5cff;
-      border-radius:16px;
-      padding:18px;
-      background:#10091f;
-      box-shadow:0 0 24px #7138ff66;
-      text-align:center;
-      font-size:26px;
-      font-weight:800;
-      min-height:36px;
-    ">✦ ${esc(pool[0].name)} ✦</div>
+    <div class="wheel-wrap">
+      <div class="wheel-pointer">▼</div>
+      <div class="wheel" id="rouletteWheel">
+        <canvas id="wheelCanvas"></canvas>
+        <div class="wheel-center">ELITE</div>
+      </div>
+      <div class="wheel-result" id="wheelResult">GOOD LUCK</div>
+    </div>
   `;
+  drawWheel(pool.map(p => p.name));
 
-  // Start the roulette and progressively slow it down.
-  for (let i = 0; i < 35; i++) {
-    const slot = $("slotMachine");
-    if (!slot) {
-      phase = "draw";
-      return;
-    }
-
-    const randomPlayer =
-      pool[Math.floor(Math.random() * pool.length)];
-
-    slot.textContent = "✦ " + randomPlayer.name + " ✦";
-
-    await new Promise(resolve =>
-      setTimeout(resolve, 60 + i * 10)
-    );
-  }
-
-  // Ask Supabase for the official selected player.
-  const { data, error } = await supabaseClient.rpc(
-    "tod_draw_player",
-    {
-      p_code: code,
-      p_player_token: token
-    }
-  );
+  // Supabase decides the official player; the wheel animation reveals that result.
+  const { data, error } = await supabaseClient.rpc("tod_draw_player", {
+    p_code: code,
+    p_player_token: token
+  });
 
   if (error || !data) {
     console.error("Draw error:", error);
     phase = "draw";
-    $("gameMsg").textContent =
-      "Could not spin: " + (error?.message || "Unknown error");
-
+    $("gameMsg").textContent = "Could not spin: " + (error?.message || "Unknown error");
     $("turnArea").innerHTML = `
-      <button class="primary" onclick="drawPlayer()">
-        ✦ SPIN AGAIN ✦
-      </button>
+      <button class="primary" style="width:100%" onclick="drawPlayer()">✦ SPIN AGAIN ✦</button>
     `;
     return;
   }
 
-  const slot = $("slotMachine");
-  if (slot) {
-    slot.textContent = "✦ " + data.selected_nickname + " ✦";
-    slot.style.color = "#d8b4fe";
-  }
+  const winnerName = data.selected_nickname;
+  const winnerIndex = Math.max(0, pool.findIndex(p => p.name === winnerName));
+  const sliceDeg = 360 / pool.length;
+  // Pointer is at the top. Rotate the winning segment to the pointer.
+  const segmentCenter = winnerIndex * sliceDeg + sliceDeg / 2;
+  const finalRotation = 360 * 6 + (360 - segmentCenter);
 
-  await new Promise(resolve => setTimeout(resolve, 1000));
+  const wheel = $("rouletteWheel");
+  if (wheel) wheel.style.transform = `rotate(${finalRotation}deg)`;
 
-  // Allow the host to synchronize the official result.
+  await new Promise(resolve => setTimeout(resolve, 6400));
+
+  const result = $("wheelResult");
+  if (result) result.textContent = "✦ " + winnerName + " ✦";
+
   phase = "choice";
+  await new Promise(resolve => setTimeout(resolve, 900));
   await syncGameState();
 }
-
 
 
 async function chooseKind(k) {
@@ -993,6 +1065,7 @@ if (counter) {
       <p>Waiting for all players...</p>
     `;
   }
+}
 }
 let proposalSyncTimer = null;
 
